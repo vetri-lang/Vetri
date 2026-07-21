@@ -11,7 +11,6 @@ alloc 4096 -> tokens
 0 -> token_cnt
 0 -> i
 do
-  # skip whitespace
   i code_len < i code b[] 32 == i code b[] 10 == or and if
     do
       i 1 + -> i
@@ -19,7 +18,6 @@ do
     while
   endif
 
-  # skip comment
   i code_len < i code b[] 35 == and if
     "comment begin: " errs
     do
@@ -29,7 +27,6 @@ do
     "comment end\n" errs
   endif
 
-  # skip whitespace
   i code_len < i code b[] 32 == i code b[] 10 == or and if
     do
       i 1 + -> i
@@ -70,6 +67,7 @@ token_cnt 0 <= if 1 exit endif
 
 0 -> label_cnt
 alloc 64 -> if_stack
+alloc 64 -> then_stack
 0 -> if_stack_top
 alloc 64 -> has_else
 0 -> has_else_cnt
@@ -337,11 +335,11 @@ do
               i 1 + -> i
               i tokens [] -> func_input_count
               "input: " errs func_input_count errs
-              0 func_input_count b[] '0' - extern_funcs_cnt extern_funcs_input b[]=
+              0 func_input_count b[] 48 - extern_funcs_cnt extern_funcs_input b[]=
               i 1 + -> i
               i tokens [] -> func_output_count
               " output: " errs func_input_count errs errnl
-              0 func_output_count b[] '0' - extern_funcs_cnt extern_funcs_output b[]=
+              0 func_output_count b[] 48 - extern_funcs_cnt extern_funcs_output b[]=
               extern_funcs_cnt 1 + -> extern_funcs_cnt
             else
               func_name errs " exists\n" errs
@@ -447,130 +445,148 @@ do
         label_cnt -> cur_label
         label_cnt 1 + -> label_cnt
         cur_label if_stack_top if_stack []=
+        0 if_stack_top then_stack []=
         if_stack_top 1 + -> if_stack_top
         "pop rax\ntest rax, rax\n" prints
-        "jz .L_ELSE_" prints cur_label printi nl
-      else 
-        t "else" streq if
+        "jz .L_IF_" prints cur_label printi "_THEN_0\n" prints
+      else
+        t "then" streq if
           if_stack_top 1 - if_stack [] -> cur_label
-          0 -> k
-          0 -> exist
-          has_else_cnt 0 > if
-            do
-              k has_else [] cur_label == if 1 -> exist endif
-              k 1 + -> k
-              k has_else_cnt <
-            while
-          endif
-          exist not if
-            cur_label has_else_cnt has_else []=
-            has_else_cnt 1 + -> has_else_cnt
-          endif
+          if_stack_top 1 - then_stack [] -> cur_then
           "jmp .L_ENDIF_" prints cur_label printi nl
-          ".L_ELSE_" prints cur_label printi ":\n" prints
+          ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
+          cur_then 1 + if_stack_top 1 - then_stack []=
         else
-          t "endif" streq if
-            if_stack_top 1 - -> if_stack_top
-            if_stack_top if_stack [] -> cur_label
-            0 -> k
-            0 -> exist
-            has_else_cnt 0 > if
-              do
-                k has_else [] cur_label == if 1 -> exist endif
-                k 1 + -> k
-                k has_else_cnt <
-              while
-            endif
-            exist not if
-              ".L_ELSE_" prints cur_label printi ":\n" prints
-            endif
-            ".L_ENDIF_" prints cur_label printi ":\n" prints
-          else
-            t "do" streq if
-              label_cnt -> cur_label
-              label_cnt 1 + -> label_cnt
-              cur_label do_stack_top do_stack []=
-              do_stack_top 1 + -> do_stack_top
-              ".L_DO_" prints cur_label printi ":\n" prints
+          t "elif" streq if
+            if_stack_top 1 - if_stack [] -> cur_label
+            if_stack_top 1 - then_stack [] -> cur_then
+            "pop rax\ntest rax, rax\n" prints
+            "jz .L_IF_" prints cur_label printi "_THEN_" prints cur_then printi nl
+          else 
+            t "else" streq if
+              if_stack_top 1 - if_stack [] -> cur_label
+              if_stack_top 1 - then_stack [] -> cur_then
+              0 -> k
+              0 -> exist
+              has_else_cnt 0 > if
+                do
+                  k has_else [] cur_label == if 1 -> exist endif
+                  k 1 + -> k
+                  k has_else_cnt <
+                while
+              endif
+              exist not if
+                cur_label has_else_cnt has_else []=
+                has_else_cnt 1 + -> has_else_cnt
+              endif
+              "jmp .L_ENDIF_" prints cur_label printi nl
+              ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
             else
-              t "while" streq if
-                do_stack_top 1 - -> do_stack_top
-                do_stack_top do_stack [] -> cur_label
-                "pop rax\ntest rax, rax\n" prints
-                "jne .L_DO_" prints cur_label printi nl
+              t "endif" streq if
+                if_stack_top 1 - -> if_stack_top
+                if_stack_top if_stack [] -> cur_label
+                if_stack_top then_stack [] -> cur_then
+                0 -> k
+                0 -> exist
+                has_else_cnt 0 > if
+                  do
+                    k has_else [] cur_label == if 1 -> exist endif
+                    k 1 + -> k
+                    k has_else_cnt <
+                  while
+                endif
+                exist not if
+                  ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
+                endif
+                ".L_ENDIF_" prints cur_label printi ":\n" prints
               else
-                t "->" streq if
-                  i 1 + -> i
-                  i tokens [] -> var_name
-                  "pop rax\n" prints
-                  "mov [rel var_" prints var_name prints "], rax\n" prints
+                t "do" streq if
+                  label_cnt -> cur_label
+                  label_cnt 1 + -> label_cnt
+                  cur_label do_stack_top do_stack []=
+                  do_stack_top 1 + -> do_stack_top
+                  ".L_DO_" prints cur_label printi ":\n" prints
                 else
-                  t "alloc" streq if
-                    "lea rax, [rel alloc_" prints alloc_idx printi "]\n" prints
-                    "push rax\n" prints
-                    alloc_idx 1 + -> alloc_idx
-                    i 1 + -> i
+                  t "while" streq if
+                    do_stack_top 1 - -> do_stack_top
+                    do_stack_top do_stack [] -> cur_label
+                    "pop rax\ntest rax, rax\n" prints
+                    "jne .L_DO_" prints cur_label printi nl
                   else
-                    t "extern" streq if
-                      "find extern\n" errs
+                    t "->" streq if
+                      i 1 + -> i
+                      i tokens [] -> var_name
+                      "pop rax\n" prints
+                      "mov [rel var_" prints var_name prints "], rax\n" prints
                     else
-                      0 -> k
-                      0 -> exist
-                      symbols_cnt 0 > if
-                        do
-                          k symbols [] t streq if
-                            1 -> exist
-                          endif
-                          k 1 + -> k
-                          k symbols_cnt <
-                        while
-                      endif
-                      exist if
-                        "mov rax, [rel var_" prints t prints "]\n" prints
+                      t "alloc" streq if
+                        "lea rax, [rel alloc_" prints alloc_idx printi "]\n" prints
                         "push rax\n" prints
+                        alloc_idx 1 + -> alloc_idx
+                        i 1 + -> i
                       else
-                        t -> func_name
-                        0 -> j
-                        0 -> exist
-                        0 -> extern_func_idx
-                        extern_funcs_cnt 0 > if
-                          do
-                            j extern_funcs [] func_name streq if
-                              1 -> exist
-                              j -> extern_func_idx
-                            endif
-                            j 1 + -> j
-                            j extern_funcs_cnt < exist not and
-                          while
-                        endif
-                        exist if
-                          extern_func_idx extern_funcs_input b[] -> input_cnt
-                          extern_func_idx extern_funcs_output b[] -> output_cnt
-                          input_cnt if
-                            input_cnt extern_funcs_push [] prints
-                          endif
-                          "call " prints func_name prints nl
-                          output_cnt if
-                            output_cnt extern_funcs_pop [] prints
-                          endif
+                        t "extern" streq if
+                          "find extern\n" errs
                         else
-                          0 -> j
+                          0 -> k
                           0 -> exist
-                          0 -> ops_idx
-                          do
-                            j ops_name [] t streq if
-                              1 -> exist
-                              j -> ops_idx
-                            endif
-                            j 1 + -> j
-                            j ops_cnt < exist not and
-                          while
+                          symbols_cnt 0 > if
+                            do
+                              k symbols [] t streq if
+                                1 -> exist
+                              endif
+                              k 1 + -> k
+                              k symbols_cnt <
+                            while
+                          endif
                           exist if
-                            ops_idx ops_code [] prints
+                            "mov rax, [rel var_" prints t prints "]\n" prints
+                            "push rax\n" prints
                           else
-                            0 t b[] 0 != if
-                              i erri ":Symbol Error: Unknown symbol '" errs t errs "'\n" errs
-                              1 exit
+                            t -> func_name
+                            0 -> j
+                            0 -> exist
+                            0 -> extern_func_idx
+                            extern_funcs_cnt 0 > if
+                              do
+                                j extern_funcs [] func_name streq if
+                                  1 -> exist
+                                  j -> extern_func_idx
+                                endif
+                                j 1 + -> j
+                                j extern_funcs_cnt < exist not and
+                              while
+                            endif
+                            exist if
+                              extern_func_idx extern_funcs_input b[] -> input_cnt
+                              extern_func_idx extern_funcs_output b[] -> output_cnt
+                              input_cnt if
+                                input_cnt extern_funcs_push [] prints
+                              endif
+                              "call " prints func_name prints nl
+                              output_cnt if
+                                output_cnt extern_funcs_pop [] prints
+                              endif
+                            else
+                              0 -> j
+                              0 -> exist
+                              0 -> ops_idx
+                              do
+                                j ops_name [] t streq if
+                                  1 -> exist
+                                  j -> ops_idx
+                                endif
+                                j 1 + -> j
+                                j ops_cnt < exist not and
+                              while
+                              exist if
+                                ops_idx ops_code [] prints
+                              else
+                                0 t b[] 0 != if
+                                  i erri ":Symbol Error: Unknown symbol '" errs t errs "'\n" errs
+                                  1 exit
+                                endif
+                              endif
                             endif
                           endif
                         endif
