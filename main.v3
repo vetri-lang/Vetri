@@ -8,28 +8,39 @@ filename readfile -> code -> code_len
 code_len 0 <= if 1 exit endif
 
 alloc 4096 -> tokens
+alloc 4096 -> tokens_line_number
 0 -> token_cnt
+0 -> line_cnt
 0 -> i
 do
   i code_len < i code b[] 32 == i code b[] 10 == or and if
+    i code b[] 10 == if line_cnt 1 + -> line_cnt endif
     do
       i 1 + -> i
+      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
       i code_len < i code b[] 32 == i code b[] 10 == or and
     while
   endif
 
   i code_len < i code b[] 35 == and if
-    "comment begin: " errs
     do
+      "comment begin: " errs
+      do
+        i 1 + -> i
+        i code_len < i code b[] 10 != and
+      while
+      "comment end\n" errs
+      line_cnt 1 + -> line_cnt
       i 1 + -> i
-      i code_len < i code b[] 10 != and
+      i code_len < i code b[] 35 == and
     while
-    "comment end\n" errs
   endif
 
   i code_len < i code b[] 32 == i code b[] 10 == or and if
+    i code b[] 10 == if line_cnt 1 + -> line_cnt endif
     do
       i 1 + -> i
+      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
       i code_len < i code b[] 32 == i code b[] 10 == or and
     while
   endif
@@ -43,8 +54,10 @@ do
     while
   else 
     i code_len < i code b[] 32 != i code b[] 10 != and and if
+      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
       do
         i 1 + -> i
+        i code b[] 10 == if line_cnt 1 + -> line_cnt endif
         i code_len < i code b[] 32 != i code b[] 10 != and and
       while
     endif
@@ -53,6 +66,7 @@ do
   0 i code b[]=
   
   start token_cnt tokens []=
+  line_cnt token_cnt tokens_line_number []=
 
   token_cnt 1 + -> token_cnt
 
@@ -64,6 +78,7 @@ while
 token_cnt 0 <= if 1 exit endif
 
 "Tokens: " errs token_cnt erri errnl
+"Lines: " errs line_cnt erri errnl
 
 0 -> label_cnt
 alloc 64 -> if_stack
@@ -566,7 +581,7 @@ do
           ops_idx ops_code [] prints
         else
           0 t b[] 0 != if
-            i erri ":Symbol Error: Unknown symbol '" errs t errs "'\n" errs
+            i tokens_line_number [] erri ":Symbol Error: Unknown symbol '" errs t errs "'\n" errs
             1 exit
           endif
         endif
