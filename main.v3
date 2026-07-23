@@ -65,7 +65,7 @@ token_cnt 0 <= if 1 exit endif
 
 0 -> label_cnt
 alloc 64 -> if_stack
-alloc 64 -> then_stack
+alloc 64 -> elif_stack
 0 -> if_stack_top
 alloc 64 -> has_else
 0 -> has_else_cnt
@@ -411,24 +411,22 @@ while i token_cnt < do
     label_cnt -> cur_label
     label_cnt 1 + -> label_cnt
     cur_label if_stack_top if_stack []=
-    0 if_stack_top then_stack []=
+    0 if_stack_top elif_stack []=
     if_stack_top 1 + -> if_stack_top
-    "pop rax\ntest rax, rax\n" prints
-    "jz .L_IF_" prints cur_label printi "_THEN_0\n" prints
-  then t "then" streq elif
-    if_stack_top 1 - if_stack [] -> cur_label
-    if_stack_top 1 - then_stack [] -> cur_then
-    "jmp .L_ENDIF_" prints cur_label printi nl
-    ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
-    cur_then 1 + if_stack_top 1 - then_stack []=
   then t "elif" streq elif
     if_stack_top 1 - if_stack [] -> cur_label
-    if_stack_top 1 - then_stack [] -> cur_then
+    if_stack_top 1 - elif_stack [] -> cur_elif
+    "jmp .L_ENDIF_" prints cur_label printi nl
+    ".L_IF_" prints cur_label printi "_ELIF_" prints cur_elif printi ":\n" prints
+    cur_elif 1 + if_stack_top 1 - elif_stack []=
+  then t "then" streq elif
+    if_stack_top 1 - if_stack [] -> cur_label
+    if_stack_top 1 - elif_stack [] -> cur_elif
     "pop rax\ntest rax, rax\n" prints
-    "jz .L_IF_" prints cur_label printi "_THEN_" prints cur_then printi nl
+    "jz .L_IF_" prints cur_label printi "_ELIF_" prints cur_elif printi nl
   then t "else" streq elif
     if_stack_top 1 - if_stack [] -> cur_label
-    if_stack_top 1 - then_stack [] -> cur_then
+    if_stack_top 1 - elif_stack [] -> cur_elif
     0 -> k
     0 -> exist
     while k has_else_cnt < exist not and do
@@ -440,11 +438,11 @@ while i token_cnt < do
       has_else_cnt 1 + -> has_else_cnt
     endif
     "jmp .L_ENDIF_" prints cur_label printi nl
-    ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
+    ".L_IF_" prints cur_label printi "_ELIF_" prints cur_elif printi ":\n" prints
   then t "endif" streq elif
     if_stack_top 1 - -> if_stack_top
     if_stack_top if_stack [] -> cur_label
-    if_stack_top then_stack [] -> cur_then
+    if_stack_top elif_stack [] -> cur_elif
     0 -> k
     0 -> exist
     while k has_else_cnt < exist not and do
@@ -452,7 +450,7 @@ while i token_cnt < do
       k 1 + -> k
     endwhile
     exist not if
-      ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
+      ".L_IF_" prints cur_label printi "_ELIF_" prints cur_elif printi ":\n" prints
     endif
     ".L_ENDIF_" prints cur_label printi ":\n" prints
   then t "while" streq elif
