@@ -86,8 +86,8 @@ alloc 64 -> then_stack
 0 -> if_stack_top
 alloc 64 -> has_else
 0 -> has_else_cnt
-alloc 32 -> do_stack
-0 -> do_stack_top
+alloc 32 -> while_stack
+0 -> while_stack_top
 alloc 256 -> symbols
 0 -> symbols_cnt
 alloc 32 -> alloc_cells
@@ -502,17 +502,21 @@ do
       ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
     endif
     ".L_ENDIF_" prints cur_label printi ":\n" prints
-  then t "do" streq elif
+  then t "while" streq elif
     label_cnt -> cur_label
     label_cnt 1 + -> label_cnt
-    cur_label do_stack_top do_stack []=
-    do_stack_top 1 + -> do_stack_top
-    ".L_DO_" prints cur_label printi ":\n" prints
-  then t "while" streq elif
-    do_stack_top 1 - -> do_stack_top
-    do_stack_top do_stack [] -> cur_label
+    cur_label while_stack_top while_stack []=
+    while_stack_top 1 + -> while_stack_top
+    ".L_WHILE_" prints cur_label printi ":\n" prints
+  then t "do" streq elif
+    while_stack_top 1 - while_stack [] -> cur_label
     "pop rax\ntest rax, rax\n" prints
-    "jne .L_DO_" prints cur_label printi nl
+    "jz .L_ENDWHILE_" prints cur_label printi nl
+  then t "endwhile" streq elif
+    while_stack_top 1 - -> while_stack_top
+    while_stack_top while_stack [] -> cur_label
+    "jmp .L_WHILE_" prints cur_label printi nl
+    ".L_ENDWHILE_" prints cur_label printi ":\n" prints
   then t "->" streq elif
     i 1 + -> i
     i tokens [] -> var_name
