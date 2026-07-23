@@ -12,55 +12,40 @@ alloc 4096 -> tokens_line_number
 0 -> token_cnt
 0 -> line_cnt
 0 -> i
-do
-  i code_len < i code b[] 32 == i code b[] 10 == or and if
+while i code_len < do
+  while i code_len < i code b[] 32 == i code b[] 10 == or and do
     i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-    do
-      i 1 + -> i
-      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-      i code_len < i code b[] 32 == i code b[] 10 == or and
-    while
-  endif
+    i 1 + -> i
+  endwhile
 
-  i code_len < i code b[] 35 == and if
-    do
-      "comment begin: " errs
-      do
-        i 1 + -> i
-        i code_len < i code b[] 10 != and
-      while
-      "comment end\n" errs
-      line_cnt 1 + -> line_cnt
+  while i code_len < i code b[] 35 == and do
+    i 1 + -> i
+    "comment begin: " errs
+    while i code_len < i code b[] 10 != and do
       i 1 + -> i
-      i code_len < i code b[] 35 == and
-    while
-  endif
+    endwhile
+    "comment end\n" errs
+    line_cnt 1 + -> line_cnt
+    i 1 + -> i
+  endwhile
 
-  i code_len < i code b[] 32 == i code b[] 10 == or and if
+  while i code_len < i code b[] 32 == i code b[] 10 == or and do
     i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-    do
-      i 1 + -> i
-      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-      i code_len < i code b[] 32 == i code b[] 10 == or and
-    while
-  endif
+    i 1 + -> i
+  endwhile
 
   code i + -> start
 
   i code_len < i code b[] 34 == and if
-    do
+    i 1 + -> i
+    while i code_len < i code b[] 34 == i 1 - code b[] 92 == and i code b[] 34 != or and do
       i 1 + -> i
-      i code_len < i code b[] 34 == i 1 - code b[] 92 == and i code b[] 34 != or and
-    while
+    endwhile
   else 
-    i code_len < i code b[] 32 != i code b[] 10 != and and if
-      i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-      do
-        i 1 + -> i
-        i code b[] 10 == if line_cnt 1 + -> line_cnt endif
-        i code_len < i code b[] 32 != i code b[] 10 != and and
-      while
-    endif
+    while i code_len < i code b[] 32 != i code b[] 10 != and and do
+      i 1 + -> i
+    endwhile
+    i code b[] 10 == if line_cnt 1 + -> line_cnt endif
   endif
 
   0 i code b[]=
@@ -71,9 +56,7 @@ do
   token_cnt 1 + -> token_cnt
 
   i 1 + -> i
-
-  i code_len <
-while
+endwhile
 
 token_cnt 0 <= if 1 exit endif
 
@@ -94,7 +77,7 @@ alloc 32 -> alloc_cells
 0 -> alloc_cnt
 0 -> alloc_idx
 0 -> str_cnt
-alloc 128 -> strings
+alloc 256 -> strings
 alloc 128 -> extern_funcs
 alloc 16 -> extern_funcs_input
 alloc 16 -> extern_funcs_output
@@ -285,7 +268,7 @@ ops_cnt ops_code []=
 ops_cnt 1 + -> ops_cnt
 
 0 -> i
-do
+while i token_cnt < do
   i tokens [] -> t
   t "->" streq if
     i 1 + -> i
@@ -293,13 +276,10 @@ do
     var_name if
       0 -> j
       0 -> exist
-      symbols_cnt 0 > if
-        do
-          j symbols [] var_name streq if 1 -> exist endif
-          j 1 + -> j
-          j symbols_cnt < exist not and
-        while
-      endif
+      while j symbols_cnt < exist not and do
+        j symbols [] var_name streq if 1 -> exist endif
+        j 1 + -> j
+      endwhile
       exist not if
         var_name symbols_cnt symbols []=
         symbols_cnt 1 + -> symbols_cnt
@@ -308,13 +288,10 @@ do
   then 0 t b[] 34 == elif
     0 -> j 
     0 -> exist
-    str_cnt 0 > if
-      do
-        j strings [] t streq if 1 -> exist endif
-        j 1 + -> j
-        j str_cnt < exist not and
-      while
-    endif
+    while j str_cnt < exist not and do
+      j strings [] t streq if 1 -> exist endif
+      j 1 + -> j
+    endwhile
     exist not if
       t str_cnt strings []=
       str_cnt 1 + -> str_cnt
@@ -334,13 +311,10 @@ do
       "start searching " errs func_name errs errnl
       0 -> j
       0 -> exist
-      extern_funcs_cnt 0 > if
-        do
-          j extern_funcs [] func_name streq if 1 -> exist endif
-          j 1 + -> j
-          j extern_funcs_cnt < exist not and
-        while
-      endif
+      while j extern_funcs_cnt < exist not and do
+        j extern_funcs [] func_name streq if 1 -> exist endif
+        j 1 + -> j
+      endwhile
       exist not if
         func_name extern_funcs_cnt extern_funcs []=
         "append " errs func_name errs " to extern_funcs[]\n" errs
@@ -360,49 +334,36 @@ do
   endif
         
   i 1 + -> i
-  i token_cnt <
-while
+endwhile
 
 0 -> i
-extern_funcs_cnt 0 > if
-  do
-      "extern " prints i extern_funcs [] prints nl
-      i 1 + -> i
-      i extern_funcs_cnt <
-  while
-endif
+while i extern_funcs_cnt < do
+  "extern " prints i extern_funcs [] prints nl
+  i 1 + -> i
+endwhile
 "global _start\n" prints
 "section .data\n" prints
 0 -> i
-str_cnt 0 > if
-  do
-    i strings [] -> raw_str
-    96 0 raw_str b[]=
-    "str_" prints i printi " db " prints raw_str prints "\`, 0\n" prints
-    34 0 raw_str b[]=
-    i 1 + -> i
-    i str_cnt <
-  while
-endif
+while i str_cnt < do
+  i strings [] -> raw_str
+  96 0 raw_str b[]=
+  "str_" prints i printi " db " prints raw_str prints "\`, 0\n" prints
+  34 0 raw_str b[]=
+  i 1 + -> i
+endwhile
 
 "section .bss\n" prints
 0 -> i
-alloc_cnt 0 > if
-  do
-    "alloc_" prints i printi " resq " prints i alloc_cells [] prints nl
-    i 1 + -> i
-    i alloc_cnt <
-  while
-endif
+while i alloc_cnt < do
+  "alloc_" prints i printi " resq " prints i alloc_cells [] prints nl
+  i 1 + -> i
+endwhile
 
 0 -> i
-symbols_cnt 0 > if
-  do
-    "var_" prints i symbols [] prints " resq 1\n" prints
-    i 1 + -> i
-    i symbols_cnt <
-  while
-endif
+while i symbols_cnt < do
+  "var_" prints i symbols [] prints " resq 1\n" prints
+  i 1 + -> i
+endwhile
 
 "section .text\n" prints
 "_start:\n" prints
@@ -413,39 +374,37 @@ endif
 "mov [rel var_argv], rbx\n" prints
 
 0 -> i
-do
+while i token_cnt < do
   i tokens [] -> t
-  1 -> is_int_number
-  0 t b[] -> ch
-  ch 0 != if
-    ch 48 >= ch 57 <= and -> is_first_digit
-    ch 43 == ch 45 == or -> has_first_sign
-    is_first_digit has_first_sign or if
-      has_first_sign if 1 else 0 endif -> j
-      j t b[] -> ch
-      do
-        ch 48 < ch 57 > or if
-          0 -> is_int_number
-        endif
-        j 1 + -> j
-        j t b[] -> ch
-        ch 0 !=
-      while
-    else
-      0 -> is_int_number
-    endif
+  1 -> is_valid_integer
+  0 t b[] 0 == if
+    0 -> is_valid_integer
   else
-    0 -> is_int_number
+    0 -> j
+    j t b[] -> ch
+    ch 43 == ch 45 == or if
+      j 1 + -> j
+    endif
+    j t b[] 0 == if
+      0 -> is_valid_integer
+    else
+      while j t b[] is_valid_integer and do
+        j t b[] 48 < j t b[] 57 > or if
+          0 -> is_valid_integer
+        else
+          j 1 + -> j
+        endif
+      endwhile
+    endif
   endif
 
-  is_int_number if
+  is_valid_integer if
     "push " prints t prints nl
   then 0 t b[] 34 == elif
-    -1 -> k
-    do
+    0 -> k
+    while k strings [] t streq not do
       k 1 + -> k
-      k strings [] t streq not
-    while
+    endwhile
     "lea rax, [rel str_" prints k printi "]\n" prints
     "push rax\n" prints
   then t "if" streq elif
@@ -472,13 +431,10 @@ do
     if_stack_top 1 - then_stack [] -> cur_then
     0 -> k
     0 -> exist
-    has_else_cnt 0 > if
-      do
-        k has_else [] cur_label == if 1 -> exist endif
-        k 1 + -> k
-        k has_else_cnt <
-      while
-    endif
+    while k has_else_cnt < exist not and do
+      k has_else [] cur_label == if 1 -> exist endif
+      k 1 + -> k
+    endwhile
     exist not if
       cur_label has_else_cnt has_else []=
       has_else_cnt 1 + -> has_else_cnt
@@ -491,13 +447,10 @@ do
     if_stack_top then_stack [] -> cur_then
     0 -> k
     0 -> exist
-    has_else_cnt 0 > if
-      do
-        k has_else [] cur_label == if 1 -> exist endif
-        k 1 + -> k
-        k has_else_cnt <
-      while
-    endif
+    while k has_else_cnt < exist not and do
+      k has_else [] cur_label == if 1 -> exist endif
+      k 1 + -> k
+    endwhile
     exist not if
       ".L_IF_" prints cur_label printi "_THEN_" prints cur_then printi ":\n" prints
     endif
@@ -532,15 +485,10 @@ do
   else
     0 -> k
     0 -> exist
-    symbols_cnt 0 > if
-      do
-        k symbols [] t streq if
-          1 -> exist
-        endif
-        k 1 + -> k
-        k symbols_cnt <
-      while
-    endif
+    while k symbols_cnt < exist not and do
+      k symbols [] t streq if 1 -> exist endif
+      k 1 + -> k
+    endwhile
     exist if
       "mov rax, [rel var_" prints t prints "]\n" prints
       "push rax\n" prints
@@ -549,16 +497,13 @@ do
       0 -> j
       0 -> exist
       0 -> extern_func_idx
-      extern_funcs_cnt 0 > if
-        do
-          j extern_funcs [] func_name streq if
-            1 -> exist
-            j -> extern_func_idx
-          endif
-          j 1 + -> j
-          j extern_funcs_cnt < exist not and
-        while
-      endif
+      while j extern_funcs_cnt < exist not and do
+        j extern_funcs [] func_name streq if
+          1 -> exist
+          j -> extern_func_idx
+        endif
+        j 1 + -> j
+      endwhile
       exist if
         extern_func_idx extern_funcs_input b[] -> input_cnt
         extern_func_idx extern_funcs_output b[] -> output_cnt
@@ -573,14 +518,13 @@ do
         0 -> j
         0 -> exist
         0 -> ops_idx
-        do
+        while j ops_cnt < exist not and do
           j ops_name [] t streq if
             1 -> exist
             j -> ops_idx
           endif
           j 1 + -> j
-          j ops_cnt < exist not and
-        while
+        endwhile
         exist if
           ops_idx ops_code [] prints
         else
@@ -593,7 +537,6 @@ do
     endif
   endif
   i 1 + -> i
-  i token_cnt <
-while
+endwhile
 
 "mov rax, 60\nmov rdi, 0\nsyscall\n" prints
