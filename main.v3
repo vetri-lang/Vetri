@@ -190,6 +190,11 @@ ops_cnt 1 + -> ops_cnt
 ops_cnt ops_code []=
 ops_cnt 1 + -> ops_cnt
 
+"/%" ops_cnt ops_name []=
+"pop rbx\npop rax\ncqo\nidiv rbx\npush rdx\npush rax\n"
+ops_cnt ops_code []=
+ops_cnt 1 + -> ops_cnt
+
 ">" ops_cnt ops_name []=
 "pop rbx\npop rax\ncmp rax, rbx\nsetg al\nmovzx rax, al\npush rax\n"
 ops_cnt ops_code []=
