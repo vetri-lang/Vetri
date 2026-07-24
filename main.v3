@@ -27,6 +27,10 @@ while i code_len < do
     "comment end\n" errs
     line_cnt 1 + -> line_cnt
     i 1 + -> i
+    while i code_len < i code b[] 32 == i code b[] 10 == or and do
+      if i code b[] 10 == then line_cnt 1 + -> line_cnt endif
+      i 1 + -> i
+    endwhile
   endwhile
 
   while i code_len < i code b[] 32 == i code b[] 10 == or and do
