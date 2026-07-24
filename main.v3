@@ -471,6 +471,36 @@ while i token_cnt < do
     i tokens [] -> var_name
     "pop rax\n" prints
     "mov [rel var_" prints var_name prints "], rax\n" prints
+  elif t "+=>" streq then
+    i 1 + -> i
+    i tokens [] -> var_name
+    "pop rax\n" prints
+    "add [rel var_" prints var_name prints "], rax\n" prints
+  elif t "-=>" streq then
+    i 1 + -> i
+    i tokens [] -> var_name
+    "pop rax\n" prints
+    "sub [rel var_" prints var_name prints "], rax\n" prints
+  elif t "*=>" streq then
+    i 1 + -> i
+    i tokens [] -> var_name
+    "pop rax\n" prints
+    "imul rax, [rel var_" prints var_name prints "]\n" prints
+    "mov [rel var_" prints var_name prints "], rax\n" prints
+  elif t "/=>" streq then
+    i 1 + -> i
+    i tokens [] -> var_name
+    "pop rbx\n" prints
+    "mov rax, [rel var_" prints var_name prints "]\n" prints
+    "cqo\nidiv rbx\n" prints
+    "mov [rel var_" prints var_name prints "], rax\n" prints
+  elif t "%=>" streq then
+    i 1 + -> i
+    i tokens [] -> var_name
+    "pop rbx\n" prints
+    "mov rax, [rel var_" prints var_name prints "]\n" prints
+    "cqo\nidiv rbx\n" prints
+    "mov [rel var_" prints var_name prints "], rdx\n" prints
   elif t "alloc" streq then
     "lea rax, [rel alloc_" prints alloc_idx printi "]\n" prints
     "push rax\n" prints
