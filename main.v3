@@ -307,27 +307,27 @@ ops_cnt ops_code []=
 "dup" ops_cnt ops_name []=
 "pop rax\npush rax\npush rax\n"
 ops_cnt ops_code []=
-ops_cnt 1 + -> ops_cnt
+1 +=> ops_cnt
 
 "drop" ops_cnt ops_name []=
 "pop rax\n"
 ops_cnt ops_code []=
-ops_cnt 1 + -> ops_cnt
+1 +=> ops_cnt
 
 "swap" ops_cnt ops_name []=
 "pop rbx\npop rax\npush rbx\npush rax\n"
 ops_cnt ops_code []=
-ops_cnt 1 + -> ops_cnt
+1 +=> ops_cnt
 
 "over" ops_cnt ops_name []=
 "pop rbx\npop rax\npush rax\npush rbx\npush rax\n"
 ops_cnt ops_code []=
-ops_cnt 1 + -> ops_cnt
+1 +=> ops_cnt
 
 "rot" ops_cnt ops_name []=
 "pop rcx\npop rbx\npop rax\npush rbx\npush rcx\npush rax\n"
 ops_cnt ops_code []=
-ops_cnt 1 + -> ops_cnt
+1 +=> ops_cnt
 
 0 -> i
 while i token_cnt < do
