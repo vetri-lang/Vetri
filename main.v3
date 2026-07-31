@@ -80,15 +80,17 @@ alloc 32 -> alloc_cells
 0 -> alloc_idx
 0 -> str_cnt
 alloc 256 -> strings
-alloc 128 -> extern_funcs
-alloc 16 -> extern_funcs_input
-alloc 16 -> extern_funcs_output
-0 -> extern_funcs_cnt
+alloc 128 -> funcs
+alloc 32 -> funcs_is_extern
+alloc 16 -> funcs_input
+alloc 16 -> funcs_output
+0 -> funcs_cnt
 alloc 32 -> ops_name
 alloc 32 -> ops_code
 0 -> ops_cnt
 alloc 8 -> funcs_push
 alloc 8 -> funcs_pop
+0 -> cur_func_name
 
 0 0 funcs_push []=
 "pop rdi\n"
@@ -115,65 +117,77 @@ alloc 8 -> funcs_pop
 "argv" symbols_cnt symbols []=
 1 +=> symbols_cnt
 
-"printi" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"printi" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"prints" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"prints" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"printc" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"printc" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"nl" extern_funcs_cnt extern_funcs []=
-0 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"nl" funcs_cnt funcs []=
+0 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"erri" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"erri" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"errs" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"errs" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"errc" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"errc" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"errnl" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-0 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"errnl" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+0 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"readfile" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-2 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"readfile" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+2 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"streq" extern_funcs_cnt extern_funcs []=
-2 extern_funcs_cnt extern_funcs_input b[]=
-1 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"streq" funcs_cnt funcs []=
+2 funcs_cnt funcs_input b[]=
+1 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"strcmp" extern_funcs_cnt extern_funcs []=
-2 extern_funcs_cnt extern_funcs_input b[]=
-1 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"strcmp" funcs_cnt funcs []=
+2 funcs_cnt funcs_input b[]=
+1 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
-"strlen" extern_funcs_cnt extern_funcs []=
-1 extern_funcs_cnt extern_funcs_input b[]=
-1 extern_funcs_cnt extern_funcs_output b[]=
-1 +=> extern_funcs_cnt
+"strlen" funcs_cnt funcs []=
+1 funcs_cnt funcs_input b[]=
+1 funcs_cnt funcs_output b[]=
+1 funcs_cnt funcs_is_extern b[]=
+1 +=> funcs_cnt
 
 "+" ops_cnt ops_name []=
 "pop rbx\npop rax\nadd rax, rbx\npush rax\n"
@@ -374,27 +388,28 @@ while i token_cnt < do
   elif t "extern" streq then
     1 +=> i
     i tokens [] -> func_name
-    "try to find " errs func_name errs " in extern_funcs[]\n" errs
+    "try to find " errs func_name errs " in funcs[]\n" errs
     if func_name then
       "start searching " errs func_name errs errnl
       0 -> j
       0 -> exist
-      while j extern_funcs_cnt < exist not and do
-        if j extern_funcs [] func_name streq then 1 -> exist endif
+      while j funcs_cnt < exist not and do
+        if j funcs [] func_name streq then 1 -> exist endif
         1 +=> j
       endwhile
       if exist not then
-        func_name extern_funcs_cnt extern_funcs []=
-        "append " errs func_name errs " to extern_funcs[]\n" errs
+        func_name funcs_cnt funcs []=
+        "append " errs func_name errs " to funcs[]\n" errs
         1 +=> i
         i tokens [] -> func_input_count
         "input: " errs func_input_count errs
-        0 func_input_count b[] 48 - extern_funcs_cnt extern_funcs_input b[]=
+        0 func_input_count b[] 48 - funcs_cnt funcs_input b[]=
         1 +=> i
         i tokens [] -> func_output_count
-        " output: " errs func_input_count errs errnl
-        0 func_output_count b[] 48 - extern_funcs_cnt extern_funcs_output b[]=
-        1 +=> extern_funcs_cnt
+        " output: " errs func_output_count errs errnl
+        0 func_output_count b[] 48 - funcs_cnt funcs_output b[]=
+        1 funcs_cnt funcs_is_extern b[]=
+        1 +=> funcs_cnt
       else
         func_name errs " exists\n" errs
       endif
@@ -405,8 +420,8 @@ while i token_cnt < do
 endwhile
 
 0 -> i
-while i extern_funcs_cnt < do
-  "extern " prints i extern_funcs [] prints nl
+while i funcs_cnt < do
+  "extern " prints i funcs [] prints nl
   1 +=> i
 endwhile
 "global _start\n" prints
@@ -475,6 +490,25 @@ while i token_cnt < do
     endwhile
     "lea rax, [rel str_" prints k printi "]\n" prints
     "push rax\n" prints
+  elif 0 t b[] 64 == then
+    "find @\n" errs
+    1 t b[] 48 - -> num
+    if num 0 == then
+      "push rdi\n" prints
+    elif num 1 == then
+      "push rsi\n" prints
+    elif num 2 == then
+      "push rdx\n" prints
+    elif num 3 == then
+      "push rcx\n" prints
+    elif num 4 == then
+      "push r8\n" prints
+    elif num 5 == then
+      "push r9\n" prints
+    else
+      "Invalid argument number after '@'\n" errs
+      1 exit
+    endif
   elif t "if" streq then
     label_cnt -> cur_label
     1 +=> label_cnt
@@ -578,6 +612,53 @@ while i token_cnt < do
     1 +=> i
   elif t "extern" streq then
     "find extern\n" errs
+  elif t "fn" streq then
+    1 +=> i
+    if cur_func_name then
+      "Invalid nesting function declaration\n" errs
+      1 exit
+    endif
+    i tokens [] -> cur_func_name
+    "try to find " errs cur_func_name errs " in funcs[]\n" errs
+    if cur_func_name then
+      "start searching " errs cur_func_name errs errnl
+      0 -> j
+      0 -> exist
+      while j funcs_cnt < exist not and do
+        if j funcs [] cur_func_name streq then 1 -> exist endif
+        1 +=> j
+      endwhile
+      if exist not then
+        cur_func_name funcs_cnt funcs []=
+        "append " errs cur_func_name errs " to funcs[]\n" errs
+        1 +=> i
+        i tokens [] -> func_input_count
+        "input: " errs func_input_count errs
+        0 func_input_count b[] 48 - funcs_cnt funcs_input b[]=
+        1 +=> i
+        i tokens [] -> func_output_count
+        " output: " errs func_output_count errs errnl
+        0 func_output_count b[] 48 - -> cur_func_output_count
+        cur_func_output_count funcs_cnt funcs_output b[]=
+        0 funcs_cnt funcs_is_extern b[]=
+        1 +=> funcs_cnt
+      else
+        cur_func_name errs " exists\n" errs
+        1 exit
+      endif
+    endif
+    "jmp .L_SKIP_FN_" prints cur_func_name prints nl
+    ".FN_" prints cur_func_name prints ":\n" prints
+  elif t "return" streq then
+    if cur_func_output_count 1 == then
+      "pop rax\n" prints
+    elif cur_func_output_count 2 == then
+      "pop rdx\npop rax\n" prints
+    endif
+    "ret\n" prints
+  elif t "endfn" streq then
+    ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
+    0 -> cur_func_name
   else
     0 -> k
     0 -> exist
@@ -592,21 +673,25 @@ while i token_cnt < do
       t -> func_name
       0 -> j
       0 -> exist
-      0 -> extern_func_idx
-      while j extern_funcs_cnt < exist not and do
-        if j extern_funcs [] func_name streq then
+      0 -> func_idx
+      while j funcs_cnt < exist not and do
+        if j funcs [] func_name streq then
           1 -> exist
-          j -> extern_func_idx
+          j -> func_idx
         endif
         1 +=> j
       endwhile
       if exist then
-        extern_func_idx extern_funcs_input b[] -> input_cnt
-        extern_func_idx extern_funcs_output b[] -> output_cnt
+        func_idx funcs_input b[] -> input_cnt
+        func_idx funcs_output b[] -> output_cnt
         if input_cnt then
           input_cnt funcs_push [] prints
         endif
-        "call " prints func_name prints nl
+        if func_idx funcs_is_extern b[] then
+          "call " prints func_name prints nl
+        else
+          "call .FN_" prints func_name prints nl
+        endif
         if output_cnt then
           output_cnt funcs_pop [] prints
         endif
