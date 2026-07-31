@@ -87,22 +87,28 @@ alloc 16 -> extern_funcs_output
 alloc 32 -> ops_name
 alloc 32 -> ops_code
 0 -> ops_cnt
-alloc 8 -> extern_funcs_push
-alloc 8 -> extern_funcs_pop
+alloc 8 -> funcs_push
+alloc 8 -> funcs_pop
 
-0 0 extern_funcs_push []=
+0 0 funcs_push []=
 "pop rdi\n"
-1 extern_funcs_push []=
+1 funcs_push []=
 "pop rsi\npop rdi\n"
-2 extern_funcs_push []=
+2 funcs_push []=
 "pop rdx\npop rsi\npop rdi"
-3 extern_funcs_push []=
+3 funcs_push []=
+"pop rcx\npop rdx\npop rsi\npop rdi"
+4 funcs_push []=
+"pop r8\npop rcx\npop rdx\npop rsi\npop rdi"
+5 funcs_push []=
+"pop r9\npop r8\npop rcx\npop rdx\npop rsi\npop rdi"
+6 funcs_push []=
 
-0 0 extern_funcs_pop []=
+0 0 funcs_pop []=
 "push rax\n"
-1 extern_funcs_pop []=
+1 funcs_pop []=
 "push rdx\npush rax\n"
-2 extern_funcs_pop []=
+2 funcs_pop []=
 
 "argc" symbols_cnt symbols []=
 1 +=> symbols_cnt
@@ -598,11 +604,11 @@ while i token_cnt < do
         extern_func_idx extern_funcs_input b[] -> input_cnt
         extern_func_idx extern_funcs_output b[] -> output_cnt
         if input_cnt then
-          input_cnt extern_funcs_push [] prints
+          input_cnt funcs_push [] prints
         endif
         "call " prints func_name prints nl
         if output_cnt then
-          output_cnt extern_funcs_pop [] prints
+          output_cnt funcs_pop [] prints
         endif
       else
         0 -> j
