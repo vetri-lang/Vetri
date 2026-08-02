@@ -97,13 +97,13 @@ alloc 8 -> funcs_pop
 1 funcs_push []=
 "pop rsi\npop rdi\n"
 2 funcs_push []=
-"pop rdx\npop rsi\npop rdi"
+"pop rdx\npop rsi\npop rdi\n"
 3 funcs_push []=
-"pop rcx\npop rdx\npop rsi\npop rdi"
+"pop rcx\npop rdx\npop rsi\npop rdi\n"
 4 funcs_push []=
-"pop r8\npop rcx\npop rdx\npop rsi\npop rdi"
+"pop r8\npop rcx\npop rdx\npop rsi\npop rdi\n"
 5 funcs_push []=
-"pop r9\npop r8\npop rcx\npop rdx\npop rsi\npop rdi"
+"pop r9\npop r8\npop rcx\npop rdx\npop rsi\npop rdi\n"
 6 funcs_push []=
 
 0 0 funcs_pop []=
@@ -634,7 +634,8 @@ while i token_cnt < do
         1 +=> i
         i tokens [] -> func_input_count
         "input: " errs func_input_count errs
-        0 func_input_count b[] 48 - funcs_cnt funcs_input b[]=
+        0 func_input_count b[] 48 - -> cur_func_input_count
+        cur_func_input_count funcs_cnt funcs_input b[]=
         1 +=> i
         i tokens [] -> func_output_count
         " output: " errs func_output_count errs errnl
@@ -649,12 +650,14 @@ while i token_cnt < do
     endif
     "jmp .L_SKIP_FN_" prints cur_func_name prints nl
     ".FN_" prints cur_func_name prints ":\n" prints
+    "push rbp\nmovrbp, rsp\n" prints
   elif t "return" streq then
     if cur_func_output_count 1 == then
       "pop rax\n" prints
     elif cur_func_output_count 2 == then
       "pop rdx\npop rax\n" prints
     endif
+    "mov rsp, rbp\npop rbp\n" prints
     "ret\n" prints
   elif t "endfn" streq then
     ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
