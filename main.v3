@@ -88,29 +88,21 @@ alloc 16 -> funcs_output
 alloc 32 -> ops_name
 alloc 32 -> ops_code
 0 -> ops_cnt
-alloc 8 -> funcs_push
-alloc 8 -> funcs_pop
+alloc 8 -> funcs_para_regs
+alloc 8 -> funcs_ret_regs
 0 -> cur_func_name
 
-0 0 funcs_push []=
-"pop rdi\n"
-1 funcs_push []=
-"pop rsi\npop rdi\n"
-2 funcs_push []=
-"pop rdx\npop rsi\npop rdi\n"
-3 funcs_push []=
-"pop rcx\npop rdx\npop rsi\npop rdi\n"
-4 funcs_push []=
-"pop r8\npop rcx\npop rdx\npop rsi\npop rdi\n"
-5 funcs_push []=
-"pop r9\npop r8\npop rcx\npop rdx\npop rsi\npop rdi\n"
-6 funcs_push []=
+0 0 funcs_para_regs []=
+"rdi" 1 funcs_para_regs []=
+"rsi" 2 funcs_para_regs []=
+"rdx" 3 funcs_para_regs []=
+"rcx" 4 funcs_para_regs []=
+"r8"  5 funcs_para_regs []=
+"r9"  6 funcs_para_regs []=
 
-0 0 funcs_pop []=
-"push rax\n"
-1 funcs_pop []=
-"push rdx\npush rax\n"
-2 funcs_pop []=
+0 0 funcs_ret_regs []=
+"rax" 1 funcs_ret_regs []=
+"rdx" 2 funcs_ret_regs []=
 
 "argc" symbols_cnt symbols []=
 1 +=> symbols_cnt
@@ -493,22 +485,13 @@ while i token_cnt < do
   elif 0 t b[] 64 == then
     "find @\n" errs
     1 t b[] 48 - -> num
-    if num 0 == then
-      "push rdi\n" prints
-    elif num 1 == then
-      "push rsi\n" prints
-    elif num 2 == then
-      "push rdx\n" prints
-    elif num 3 == then
-      "push rcx\n" prints
-    elif num 4 == then
-      "push r8\n" prints
-    elif num 5 == then
-      "push r9\n" prints
+    if num 1 >= num 6 <= then
+      "mov rax, [rbp-" prints num 8 * printi "]\n" prints
     else
       "Invalid argument number after '@'\n" errs
       1 exit
     endif
+    "push rax\n" prints
   elif t "if" streq then
     label_cnt -> cur_label
     1 +=> label_cnt
@@ -650,12 +633,26 @@ while i token_cnt < do
     endif
     "jmp .L_SKIP_FN_" prints cur_func_name prints nl
     ".FN_" prints cur_func_name prints ":\n" prints
-    "push rbp\nmovrbp, rsp\n" prints
+    "push rbp\nmov rbp, rsp\n" prints
+    if cur_func_input_count then
+      1 -> k
+      while k cur_func_input_count <= do
+        "push " prints k funcs_para_regs [] prints nl
+        1 +=> k
+      endwhile
+    endif
   elif t "return" streq then
     if cur_func_output_count 1 == then
       "pop rax\n" prints
     elif cur_func_output_count 2 == then
       "pop rdx\npop rax\n" prints
+    endif
+    if cur_func_input_count then
+      cur_func_input_count -> k
+      while k do
+        "push " prints k funcs_para_regs [] prints nl
+        1 -=> k
+      endwhile
     endif
     "mov rsp, rbp\npop rbp\n" prints
     "ret\n" prints
@@ -688,7 +685,11 @@ while i token_cnt < do
         func_idx funcs_input b[] -> input_cnt
         func_idx funcs_output b[] -> output_cnt
         if input_cnt then
-          input_cnt funcs_push [] prints
+          input_cnt -> k
+          while k do
+            "pop " prints k funcs_para_regs [] prints nl
+            1 -=> k
+          endwhile
         endif
         if func_idx funcs_is_extern b[] then
           "call " prints func_name prints nl
@@ -696,7 +697,11 @@ while i token_cnt < do
           "call .FN_" prints func_name prints nl
         endif
         if output_cnt then
-          output_cnt funcs_pop [] prints
+          output_cnt -> k
+          while k do
+            "push " prints k funcs_ret_regs [] prints nl
+            1 -=> k
+          endwhile
         endif
       else
         0 -> j
