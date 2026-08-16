@@ -1,5 +1,5 @@
 if argc 2 < then
-  "Usage: vetric file\n" prints
+  "Usage: vetri file\n" prints
   1 exit
 endif
 
@@ -18,7 +18,6 @@ fn skip_whitespace 0 0
     if i code b[] 10 == then 1 +=> line_cnt endif
     1 +=> i
   endwhile
-  return
 endfn
 
 while i code_len < do
@@ -630,6 +629,9 @@ while i token_cnt < do
       endwhile
     endif
   elif t "return" streq then
+    "jmp .L_RET_FN_" prints cur_func_name prints nl
+  elif t "endfn" streq then
+    ".L_RET_FN_" prints cur_func_name prints ":\n" prints
     if cur_func_output_count 1 == then
       "pop rax\n" prints
     elif cur_func_output_count 2 == then
@@ -644,7 +646,6 @@ while i token_cnt < do
     endif
     "mov rsp, rbp\npop rbp\n" prints
     "ret\n" prints
-  elif t "endfn" streq then
     ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
     0 -> cur_func_name
   elif symbols symbols_cnt t find_name -1 != then
