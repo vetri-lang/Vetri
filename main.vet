@@ -72,17 +72,21 @@ alloc 64 -> has_else
 0 -> has_else_cnt
 alloc 32 -> while_stack
 0 -> while_stack_top
-alloc 256 -> symbols
-0 -> symbols_cnt
-alloc 32 -> alloc_cells
+alloc 512 -> variables
+0 -> variables_cnt
+alloc 512 -> local_variables
+0 -> local_variables_cnt
+alloc 64 -> alloc_cells
 0 -> alloc_cnt
 0 -> alloc_idx
 0 -> str_cnt
 alloc 256 -> strings
 alloc 128 -> funcs
+alloc 128 -> funcs_variable_start
+alloc 32 -> funcs_variable_cnt
 alloc 32 -> funcs_is_extern
-alloc 16 -> funcs_input
-alloc 16 -> funcs_output
+alloc 32 -> funcs_input
+alloc 32 -> funcs_output
 0 -> funcs_cnt
 alloc 32 -> ops_name
 alloc 32 -> ops_code
@@ -103,10 +107,10 @@ alloc 8 -> funcs_ret_regs
 "rax" 1 funcs_ret_regs []=
 "rdx" 2 funcs_ret_regs []=
 
-"argc" symbols_cnt symbols []=
-1 +=> symbols_cnt
-"argv" symbols_cnt symbols []=
-1 +=> symbols_cnt
+"argc" variables_cnt variables []=
+1 +=> variables_cnt
+"argv" variables_cnt variables []=
+1 +=> variables_cnt
 
 "printi" funcs_cnt funcs []=
 1 funcs_cnt funcs_input b[]=
@@ -359,9 +363,9 @@ while i token_cnt < do
     1 +=> i
     i tokens [] -> var_name
     if var_name then
-      if symbols symbols_cnt var_name find_name -1 == then
-        var_name symbols_cnt symbols []=
-        1 +=> symbols_cnt
+      if variables variables_cnt var_name find_name -1 == then
+        var_name variables_cnt variables []=
+        1 +=> variables_cnt
       endif
     endif
   elif 0 t b[] 34 == then
@@ -399,6 +403,38 @@ while i token_cnt < do
         func_name errs " exists\n" errs
       endif
     endif
+  elif t "fn" streq then
+    1 +=> i
+    if cur_func_name then
+      "Invalid nesting function declaration\n" errs
+      1 exit
+    endif
+    i tokens [] -> cur_func_name
+    "try to find " errs cur_func_name errs " in funcs[]\n" errs
+    if cur_func_name then
+      "start searching " errs cur_func_name errs errnl
+      if funcs funcs_cnt cur_func_name find_name -1 == then
+        cur_func_name funcs_cnt funcs []=
+        "append " errs cur_func_name errs " to funcs[]\n" errs
+        1 +=> i
+        i tokens [] -> func_input_count
+        "input: " errs func_input_count errs
+        0 func_input_count b[] 48 - -> cur_func_input_count
+        cur_func_input_count funcs_cnt funcs_input b[]=
+        1 +=> i
+        i tokens [] -> func_output_count
+        " output: " errs func_output_count errs errnl
+        0 func_output_count b[] 48 - -> cur_func_output_count
+        cur_func_output_count funcs_cnt funcs_output b[]=
+        0 funcs_cnt funcs_is_extern b[]=
+        1 +=> funcs_cnt
+      else
+        cur_func_name errs " exists\n" errs
+        1 exit
+      endif
+    endif
+  elif t "endfn" streq then
+    0 -> cur_func_name
   endif
         
   1 +=> i
@@ -406,7 +442,9 @@ endwhile
 
 0 -> i
 while i funcs_cnt < do
-  "extern " prints i funcs [] prints nl
+  if i funcs_is_extern b[] then
+    "extern " prints i funcs [] prints nl
+  endif
   1 +=> i
 endwhile
 "global _start\n" prints
@@ -428,8 +466,8 @@ while i alloc_cnt < do
 endwhile
 
 0 -> i
-while i symbols_cnt < do
-  "var_" prints i symbols [] prints " resq 1\n" prints
+while i variables_cnt < do
+  "var_" prints i variables [] prints " resq 1\n" prints
   1 +=> i
 endwhile
 
@@ -476,7 +514,6 @@ while i token_cnt < do
     "lea rax, [rel str_" prints k printi "]\n" prints
     "push rax\n" prints
   elif 0 t b[] 64 == then
-    "find @\n" errs
     1 t b[] 48 - -> num
     if num 1 >= num 6 <= then
       "mov rax, [rbp-" prints num 8 * printi "]\n" prints
@@ -590,33 +627,13 @@ while i token_cnt < do
     "find extern\n" errs
   elif t "fn" streq then
     1 +=> i
-    if cur_func_name then
-      "Invalid nesting function declaration\n" errs
-      1 exit
-    endif
     i tokens [] -> cur_func_name
     "try to find " errs cur_func_name errs " in funcs[]\n" errs
     if cur_func_name then
       "start searching " errs cur_func_name errs errnl
-      if funcs funcs_cnt cur_func_name find_name -1 == then
-        cur_func_name funcs_cnt funcs []=
-        "append " errs cur_func_name errs " to funcs[]\n" errs
-        1 +=> i
-        i tokens [] -> func_input_count
-        "input: " errs func_input_count errs
-        0 func_input_count b[] 48 - -> cur_func_input_count
-        cur_func_input_count funcs_cnt funcs_input b[]=
-        1 +=> i
-        i tokens [] -> func_output_count
-        " output: " errs func_output_count errs errnl
-        0 func_output_count b[] 48 - -> cur_func_output_count
-        cur_func_output_count funcs_cnt funcs_output b[]=
-        0 funcs_cnt funcs_is_extern b[]=
-        1 +=> funcs_cnt
-      else
-        cur_func_name errs " exists\n" errs
-        1 exit
-      endif
+      funcs funcs_cnt cur_func_name find_name -> cur_func_idx
+      cur_func_idx funcs_input b[] -> cur_func_input_count
+      cur_func_idx funcs_output b[] -> cur_func_output_count
     endif
     "jmp .L_SKIP_FN_" prints cur_func_name prints nl
     ".FN_" prints cur_func_name prints ":\n" prints
@@ -628,6 +645,7 @@ while i token_cnt < do
         1 +=> k
       endwhile
     endif
+    2 +=> i # skip input_count output_count after function name
   elif t "return" streq then
     "jmp .L_RET_FN_" prints cur_func_name prints nl
   elif t "endfn" streq then
@@ -648,7 +666,9 @@ while i token_cnt < do
     "ret\n" prints
     ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
     0 -> cur_func_name
-  elif symbols symbols_cnt t find_name -1 != then
+    0 -> cur_func_input_count
+    0 -> cur_func_output_count
+  elif variables variables_cnt t find_name -1 != then
     "mov rax, [rel var_" prints t prints "]\n" prints
     "push rax\n" prints
   elif funcs funcs_cnt t find_name dup -> func_idx -1 != then
