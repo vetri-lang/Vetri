@@ -345,11 +345,14 @@ ops_cnt ops_code []=
 1 +=> ops_cnt
 
 fn find_name ( array array_len value -- idx )
+  if @1 not then -1 return endif
   0 -> find_name_i
   -1 -> find_name_res_idx
   while find_name_i @2 < find_name_res_idx -1 == and do
-    if find_name_i @1 [] @3 streq then
-      find_name_i -> find_name_res_idx
+    if find_name_i @1 [] then
+      if find_name_i @1 [] @3 streq then
+        find_name_i -> find_name_res_idx
+      endif
     endif
     1 +=> find_name_i
   endwhile
@@ -359,16 +362,7 @@ endfn
 0 -> i
 while i token_cnt < do
   i tokens [] -> t
-  if t "->" streq then
-    1 +=> i
-    i tokens [] -> var_name
-    if var_name then
-      if variables variables_cnt var_name find_name -1 == then
-        var_name variables_cnt variables []=
-        1 +=> variables_cnt
-      endif
-    endif
-  elif 0 t b[] 34 == then
+  if 0 t b[] 34 == then
     if strings str_cnt t find_name -1 == then
       t str_cnt strings []=
       1 +=> str_cnt
@@ -416,7 +410,7 @@ while i token_cnt < do
       if funcs funcs_cnt cur_func_name find_name -1 == then
         cur_func_name funcs_cnt funcs []=
         "append " errs cur_func_name errs " to funcs[]\n" errs
-        local_variables local_variables_cnt + funcs_cnt funcs_variable_start []=
+        local_variables local_variables_cnt 8 * + funcs_cnt funcs_variable_start []=
         0 funcs_cnt funcs_variable_cnt b[]=
         1 +=> i
         if i tokens [] "(" streq then
@@ -440,16 +434,36 @@ while i token_cnt < do
           endwhile
           " output: " errs cur_func_output_count erri errnl
           cur_func_output_count funcs_cnt funcs_output b[]=
+          cur_func_input_count cur_func_output_count + funcs_cnt funcs_variable_cnt b[]=
+          0 -> k
+          while k funcs_cnt funcs_variable_cnt b[] < do
+            k funcs_cnt funcs_variable_start [] [] errs errnl
+            1 +=> k
+          endwhile
         endif
         0 funcs_cnt funcs_is_extern b[]=
-        1 +=> funcs_cnt
       else
         cur_func_name errs " exists\n" errs
         1 exit
       endif
     endif
+  elif t "->" streq then
+    1 +=> i
+    i tokens [] -> var_name
+    if var_name then
+      if cur_func_name funcs_cnt funcs_variable_start [] funcs_cnt funcs_variable_cnt b[] var_name find_name -1 != and then
+        "find local variable: " errs var_name errs errnl
+      else
+        if variables variables_cnt var_name find_name -1 == then
+          var_name variables_cnt variables []=
+          1 +=> variables_cnt
+        endif
+      endif
+    endif
   elif t "endfn" streq then
+    1 +=> funcs_cnt
     0 -> cur_func_name
+    0 -> cur_func_idx
   elif t "local" streq then
     1 +=> i
     i tokens [] -> local_var_name
@@ -607,37 +621,66 @@ while i token_cnt < do
     1 +=> i
     i tokens [] -> var_name
     "pop rax\n" prints
-    "mov [rel var_" prints var_name prints "], rax\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
+    else
+      "mov [rel var_" prints var_name prints "], rax\n" prints
+    endif
   elif t "+=>" streq then
     1 +=> i
     i tokens [] -> var_name
     "pop rax\n" prints
-    "add [rel var_" prints var_name prints "], rax\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "add [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
+    else
+      "add [rel var_" prints var_name prints "], rax\n" prints
+    endif
   elif t "-=>" streq then
     1 +=> i
     i tokens [] -> var_name
     "pop rax\n" prints
-    "sub [rel var_" prints var_name prints "], rax\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "sub [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
+    else
+      "sub [rel var_" prints var_name prints "], rax\n" prints
+    endif
   elif t "*=>" streq then
     1 +=> i
     i tokens [] -> var_name
     "pop rax\n" prints
-    "imul rax, [rel var_" prints var_name prints "]\n" prints
-    "mov [rel var_" prints var_name prints "], rax\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "imul rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
+      "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
+    else
+      "imul rax, [rel var_" prints var_name prints "]\n" prints
+      "mov [rel var_" prints var_name prints "], rax\n" prints
+    endif
   elif t "/=>" streq then
     1 +=> i
     i tokens [] -> var_name
     "pop rbx\n" prints
-    "mov rax, [rel var_" prints var_name prints "]\n" prints
-    "cqo\nidiv rbx\n" prints
-    "mov [rel var_" prints var_name prints "], rax\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
+      "cqo\nidiv rbx\n" prints
+      "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
+    else
+      "mov rax, [rel var_" prints var_name prints "]\n" prints
+      "cqo\nidiv rbx\n" prints
+      "mov [rel var_" prints var_name prints "], rax\n" prints
+    endif
   elif t "%=>" streq then
     1 +=> i
     i tokens [] -> var_name
     "pop rbx\n" prints
-    "mov rax, [rel var_" prints var_name prints "]\n" prints
-    "cqo\nidiv rbx\n" prints
-    "mov [rel var_" prints var_name prints "], rdx\n" prints
+    if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+      "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
+      "cqo\nidiv rbx\n" prints
+      "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rdx\n" prints
+    else
+      "mov rax, [rel var_" prints var_name prints "]\n" prints
+      "cqo\nidiv rbx\n" prints
+      "mov [rel var_" prints var_name prints "], rdx\n" prints
+    endif
   elif t "alloc" streq then
     "lea rax, [rel alloc_" prints alloc_idx printi "]\n" prints
     "push rax\n" prints
@@ -687,9 +730,13 @@ while i token_cnt < do
     0 -> cur_func_name
     0 -> cur_func_input_count
     0 -> cur_func_output_count
+    0 -> cur_func_idx
   elif t "local" streq then
     1 +=> i
     # TODO: skip local variable
+  elif cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] t find_name dup -> local_var_idx -1 != and then
+    "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
+    "push rax\n" prints
   elif variables variables_cnt t find_name -1 != then
     "mov rax, [rel var_" prints t prints "]\n" prints
     "push rax\n" prints
