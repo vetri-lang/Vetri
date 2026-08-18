@@ -460,15 +460,20 @@ while i token_cnt < do
         endif
       endif
     endif
+  elif t "local" streq then
+    1 +=> i
+    i tokens [] -> local_var_name
+    funcs_cnt funcs_variable_cnt b[] -> cur_func_var_cnt
+    if cur_func_name then
+      local_var_name local_variables_cnt local_variables []=
+      1 +=> local_variables_cnt
+      1 +=> cur_func_var_cnt
+    endif
+    cur_func_var_cnt funcs_cnt funcs_variable_cnt b[]=
   elif t "endfn" streq then
     1 +=> funcs_cnt
     0 -> cur_func_name
     0 -> cur_func_idx
-  elif t "local" streq then
-    1 +=> i
-    i tokens [] -> local_var_name
-    if cur_func_name then
-    endif
   endif
         
   1 +=> i
@@ -707,6 +712,10 @@ while i token_cnt < do
         "push " prints k funcs_para_regs [] prints nl
         1 +=> k
       endwhile
+    endif
+    cur_func_idx funcs_variable_cnt b[] -> cur_func_var_cnt
+    if cur_func_input_count cur_func_var_cnt < then
+      "sub rsp, " prints cur_func_var_cnt cur_func_input_count - 8 * printi nl
     endif
     1 +=> i
     if i tokens [] "(" streq then
