@@ -13,16 +13,15 @@ alloc 4096 -> tokens_line_number
 0 -> line_cnt
 0 -> i
 
-fn skip_whitespace ( -- )
+fn skip_whitespace ( code code_len i -- new_i )
   while i code_len < i code b[] 32 == i code b[] 10 == or and do
     if i code b[] 10 == then 1 +=> line_cnt endif
     1 +=> i
   endwhile
+  i return
 endfn
 
-while i code_len < do
-  skip_whitespace
-
+fn skip_comment ( code code_len i -- new_i )
   while i code_len < i code b[] 35 == and do
     1 +=> i
     "comment begin: " errs
@@ -32,10 +31,17 @@ while i code_len < do
     "comment end\n" errs
     1 +=> line_cnt
     1 +=> i
-    skip_whitespace
+    code code_len i skip_whitespace -> i
   endwhile
+  i return
+endfn
 
-  skip_whitespace
+while i code_len < do
+  code code_len i skip_whitespace -> i
+
+  code code_len i skip_comment -> i
+
+  code code_len i skip_whitespace -> i
 
   code i + -> start
 
@@ -345,18 +351,18 @@ ops_cnt ops_code []=
 1 +=> ops_cnt
 
 fn find_name ( array array_len value -- idx )
-  if @1 not then -1 return endif
-  0 -> find_name_i
-  -1 -> find_name_res_idx
-  while find_name_i @2 < find_name_res_idx -1 == and do
-    if find_name_i @1 [] then
-      if find_name_i @1 [] @3 streq then
-        find_name_i -> find_name_res_idx
+  if array not then -1 return endif
+  local i
+  0 -> i
+  while i array_len < do
+    if i array [] then
+      if i array [] value streq then
+        i return
       endif
     endif
-    1 +=> find_name_i
+    1 +=> i
   endwhile
-  find_name_res_idx return
+  -1 return
 endfn
 
 0 -> i
@@ -518,32 +524,26 @@ endwhile
 "mov [rel var_argc], rax\n" prints
 "mov [rel var_argv], rbx\n" prints
 
+fn is_valid_integer ( s -- flag )
+  if 0 s b[] 0 == then 0 return endif
+  local i
+  local ch
+  0 -> i
+  i s b[] -> ch
+  if ch 43 == ch 45 == or then 1 +=> i endif
+  if i s b[] 0 == then 0 return endif
+  while i s b[] dup -> ch do
+    if ch 48 < ch 57 > or then 0 return endif
+    1 +=> i
+  endwhile
+  1 return
+endfn
+
 0 -> i
 while i token_cnt < do
   i tokens [] -> t
-  1 -> is_valid_integer
-  if 0 t b[] 0 == then
-    0 -> is_valid_integer
-  else
-    0 -> j
-    j t b[] -> ch
-    if ch 43 == ch 45 == or then
-      1 +=> j
-    endif
-    if j t b[] 0 == then
-      0 -> is_valid_integer
-    else
-      while j t b[] is_valid_integer and do
-        if j t b[] 48 < j t b[] 57 > or then
-          0 -> is_valid_integer
-        else
-          1 +=> j
-        endif
-      endwhile
-    endif
-  endif
 
-  if is_valid_integer then
+  if t is_valid_integer then
     "push " prints t prints nl
   elif 0 t b[] 34 == then
     0 -> k
@@ -551,15 +551,6 @@ while i token_cnt < do
       1 +=> k
     endwhile
     "lea rax, [rel str_" prints k printi "]\n" prints
-    "push rax\n" prints
-  elif 0 t b[] 64 == then
-    1 t b[] 48 - -> num
-    if num 1 >= num 6 <= then
-      "mov rax, [rbp-" prints num 8 * printi "]\n" prints
-    else
-      "Invalid argument number after '@'\n" errs
-      1 exit
-    endif
     "push rax\n" prints
   elif t "if" streq then
     label_cnt -> cur_label
