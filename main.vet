@@ -11,11 +11,11 @@ alloc 4096 -> tokens
 alloc 4096 -> tokens_line_number
 0 -> token_cnt
 0 -> line_cnt
-0 -> i
 
 fn skip_whitespace ( code code_len i -- new_i )
-  while i code_len < i code b[] 32 == i code b[] 10 == or and do
-    if i code b[] 10 == then 1 +=> line_cnt endif
+  local ch
+  while i code_len < i code b[] dup -> ch 32 == ch 10 == or ch 9 == or ch 13 == or and do
+    if ch 10 == then 1 +=> line_cnt endif
     1 +=> i
   endwhile
   i return
@@ -36,36 +36,38 @@ fn skip_comment ( code code_len i -- new_i )
   i return
 endfn
 
-while i code_len < do
-  code code_len i skip_whitespace -> i
+fn get_tokens ( tokens token_cnt -- new_tokens_cnt )
+  local i
+  0 -> i
+  while i code_len < do
+    code code_len i skip_whitespace -> i
+    code code_len i skip_comment -> i
+    code code_len i skip_whitespace -> i
 
-  code code_len i skip_comment -> i
+    local start
+    code i + -> start
+    if i code_len < i code b[] 34 == and then
+      1 +=> i
+      while i code_len < i code b[] 34 == i 1 - code b[] 92 == and i code b[] 34 != or and do
+        1 +=> i
+      endwhile
+    else 
+      while i code_len < i code b[] 32 != i code b[] 10 != and and do
+        1 +=> i
+      endwhile
+      if i code b[] 10 == then 1 +=> line_cnt endif
+    endif
+    0 i code b[]=
+    start token_cnt tokens []=
 
-  code code_len i skip_whitespace -> i
-
-  code i + -> start
-
-  if i code_len < i code b[] 34 == and then
+    line_cnt token_cnt tokens_line_number []=
+    1 +=> token_cnt
     1 +=> i
-    while i code_len < i code b[] 34 == i 1 - code b[] 92 == and i code b[] 34 != or and do
-      1 +=> i
-    endwhile
-  else 
-    while i code_len < i code b[] 32 != i code b[] 10 != and and do
-      1 +=> i
-    endwhile
-    if i code b[] 10 == then 1 +=> line_cnt endif
-  endif
+  endwhile
+  token_cnt return
+endfn
 
-  0 i code b[]=
-  
-  start token_cnt tokens []=
-  line_cnt token_cnt tokens_line_number []=
-
-  1 +=> token_cnt
-
-  1 +=> i
-endwhile
+tokens token_cnt get_tokens -> token_cnt
 
 "Tokens: " errs token_cnt erri errnl
 "Lines: " errs line_cnt erri errnl
