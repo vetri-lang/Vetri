@@ -91,6 +91,8 @@ alloc 256 -> strings
 alloc 128 -> funcs
 alloc 128 -> funcs_variable_start
 alloc 32 -> funcs_variable_cnt
+alloc 128 -> funcs_token_start
+alloc 128 -> funcs_token_end
 alloc 32 -> funcs_is_extern
 alloc 32 -> funcs_input
 alloc 32 -> funcs_output
@@ -442,6 +444,7 @@ fn prescan_extern_fn ( tokens token_cnt i -- new_i )
 endfn
 
 fn prescan_fn ( tokens token_cnt i cur_func_name -- new_i new_cur_func_name )
+  i funcs_cnt funcs_token_start []=
   1 +=> i
   if cur_func_name then
     i tokens_line_number erri ":Invalid nesting function declaration\n" errs
@@ -521,6 +524,7 @@ fn prescan ( tokens token_cnt -- )
     elif t "local" streq then
       tokens token_cnt i cur_func_name prescan_local -> i
     elif t "endfn" streq then
+      i funcs_cnt funcs_token_end []=
       1 +=> funcs_cnt
       0 -> cur_func_name
     endif
@@ -531,13 +535,16 @@ endfn
 
 tokens token_cnt prescan
 
-fn declare_extern_fn ( -- )
+fn declare_fn ( -- )
   local i
   0 -> i
   while i funcs_cnt < do
     if i funcs_is_extern b[] then
-      "extern " prints i funcs [] prints nl
+      "extern " prints
+    else
+      "global " prints
     endif
+    i funcs [] prints nl
     1 +=> i
   endwhile
 endfn
@@ -574,7 +581,7 @@ endfn
 
 fn emit_head ( -- )
   "default rel\n" prints
-  declare_extern_fn
+  declare_fn
   "global _start\n" prints
   "section .data\n" prints
   declare_strings
@@ -844,8 +851,9 @@ fn parse_and_emit_fn ( tokens token_cnt i -- new_i cur_func_idx )
     local cur_func_output_count
     cur_func_idx funcs_output b[] -> cur_func_output_count
   endif
-  "jmp .L_SKIP_FN_" prints cur_func_name prints nl
-  ".FN_" prints cur_func_name prints ":\n" prints
+  #"jmp .L_SKIP_FN_" prints cur_func_name prints nl
+  #".FN_" prints cur_func_name prints ":\n" prints
+  cur_func_name prints ":\n" prints
   "push rbp\nmov rbp, rsp\n" prints
   if cur_func_input_count then
     local k
@@ -912,7 +920,8 @@ fn parse_and_emit_fn_call ( tokens token_cnt i func_idx -- new_i )
   if func_idx funcs_is_extern b[] then
     "call " prints func_name prints nl
   else
-    "call .FN_" prints func_name prints nl
+    #"call .FN_" prints func_name prints nl
+    "call " prints func_name prints nl
   endif
   if output_cnt then
     output_cnt -> k
@@ -924,11 +933,30 @@ fn parse_and_emit_fn_call ( tokens token_cnt i func_idx -- new_i )
   i return
 endfn
 
-fn parse_and_emit ( tokens token_cnt -- )
+fn parse_and_skip_fn ( tokens token_cnt i -- new_i )
+  while i token_cnt < i tokens [] "endfn" streq not and do
+    1 +=> i
+  endwhile
+  i return
+endfn
+
+fn is_local_variable ( tokens token_cnt i cur_func_idx -- new_i local_var_idx )
+  if cur_func_idx 0 == then i -1 return endif
+  local var_name
+  i tokens [] -> var_name
+  local cur_func_var_start
+  cur_func_idx funcs_variable_start [] -> cur_func_var_start
+  local cur_func_var_cnt
+  cur_func_idx funcs_variable_cnt b[] -> cur_func_var_cnt
+  cur_func_var_start cur_func_var_cnt var_name find_name -> local_var_idx
+  i local_var_idx return
+endfn
+
+0 -> alloc_idx
+
+fn parse_and_emit ( tokens token_cnt is_fn -- )
   local cur_func_idx
   0 -> cur_func_idx
-  local alloc_idx
-  0 -> alloc_idx
   local i
   0 -> i
   while i token_cnt < do
@@ -971,14 +999,22 @@ fn parse_and_emit ( tokens token_cnt -- )
     elif t "extern" streq then
       "find extern\n" errs
     elif t "fn" streq then
-      tokens token_cnt i parse_and_emit_fn -> i -> cur_func_idx
+      if is_fn then
+        tokens token_cnt i parse_and_emit_fn -> i -> cur_func_idx
+      else
+        tokens token_cnt i parse_and_skip_fn -> i
+      endif
     elif t "return" streq then
-      tokens token_cnt i cur_func_idx parse_and_emit_return -> i
+      if is_fn then
+        tokens token_cnt i cur_func_idx parse_and_emit_return -> i
+      endif
     elif t "endfn" streq then
-      tokens token_cnt i cur_func_idx parse_and_emit_endfn -> i -> cur_func_idx
+      if is_fn then
+        tokens token_cnt i cur_func_idx parse_and_emit_endfn -> i -> cur_func_idx
+      endif
     elif t "local" streq then
       1 +=> i # TODO: skip local variable
-    elif local local_var_idx cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] t find_name dup -> local_var_idx -1 != and then
+    elif local local_var_idx tokens token_cnt i cur_func_idx is_local_variable -> i dup -> local_var_idx -1 != then
       "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
       "push rax\n" prints
     elif variables variables_cnt t find_name -1 != then
@@ -998,7 +1034,29 @@ fn parse_and_emit ( tokens token_cnt -- )
   endwhile
 endfn
 
-tokens token_cnt parse_and_emit
+tokens token_cnt 0 parse_and_emit
 
 "mov rax, 60\nmov rdi, 0\nsyscall\n" prints
+
+fn parse_and_emit_standalone_fn ( tokens token_cnt -- )
+  local i
+  0 -> i
+  while i funcs_cnt < do
+    if i funcs_is_extern b[] not then
+      local start_idx
+      i funcs_token_start [] -> start_idx
+      local end_idx
+      i funcs_token_end [] -> end_idx
+      local cur_func_token_start
+      tokens start_idx 8 * + -> cur_func_token_start
+      local cur_func_token_cnt
+      end_idx start_idx - 1 + -> cur_func_token_cnt
+      cur_func_token_start cur_func_token_cnt 1 parse_and_emit
+    endif
+    1 +=> i
+  endwhile
+endfn
+
+tokens token_cnt parse_and_emit_standalone_fn
+
 "section .note.GNU-stack noalloc noexec nowrite progbits\n" prints
