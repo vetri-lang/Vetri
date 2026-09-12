@@ -102,7 +102,6 @@ alloc 32 -> ops_code
 0 -> ops_cnt
 alloc 8 -> funcs_para_regs
 alloc 8 -> funcs_ret_regs
-0 -> cur_func_name
 
 0 0 funcs_para_regs []=
 "rdi" 1 funcs_para_regs []=
@@ -817,7 +816,7 @@ fn parse_and_emit_mod_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rbx\n" prints
   local local_var_idx
-  if cur_func_name cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
     "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
     "cqo\nidiv rbx\n" prints
     "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rdx\n" prints
