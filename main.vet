@@ -102,6 +102,12 @@ alloc 32 -> ops_code
 0 -> ops_cnt
 alloc 8 -> funcs_para_regs
 alloc 8 -> funcs_ret_regs
+alloc 128 -> structs
+alloc 128 -> structs_field_start
+alloc 128 -> structs_field_cnt
+0 -> structs_cnt
+alloc 512 -> fields
+0 -> fields_cnt
 
 0 0 funcs_para_regs []=
 "rdi" 1 funcs_para_regs []=
@@ -367,6 +373,28 @@ fn find_name ( array array_len value -- idx )
   -1 return
 endfn
 
+fn debug_find_name ( array array_len value -- idx )
+  if array not then
+    "Null array point\n" errs
+    -1 return
+  endif
+  local i
+  0 -> i
+  while i array_len < do
+    if i array [] then
+      "Comparing " errs i array [] errs " and " errs value errs
+      if i array [] value streq then
+        " match!\n" errs
+        i return
+      endif
+      " unmatch, continue\n" errs
+    endif
+    1 +=> i
+  endwhile
+  "No result\n" errs
+  -1 return
+endfn
+
 fn prescan_fn_args ( tokens token_cnt i not_extern -- new_i )
   if i tokens [] "(" streq then
     1 +=> i
@@ -410,10 +438,22 @@ fn prescan_string ( tokens token_cnt i -- new_i )
   i return
 endfn
 
+fn str2int ( s -- x )
+  local ch
+  local k
+  0 -> k
+  0 -> x
+  while k s b[] dup -> ch 0 != do
+    ch 48 - x 10 * + -> x
+    1 +=> k
+  endwhile
+  x return
+endfn
+
 fn prescan_alloc_cell ( tokens token_cnt i -- new_i )
   1 +=> i
   local alloc_size
-  i tokens [] -> alloc_size
+  i tokens [] str2int -> alloc_size
   if alloc_size then
     alloc_size alloc_cnt alloc_cells []=
     1 +=> alloc_cnt
@@ -501,6 +541,42 @@ fn prescan_local ( tokens token_cnt i cur_func_name -- new_i )
   i return
 endfn
 
+fn prescan_struct ( tokens token_cnt i -- new_i )
+  1 +=> i
+  local cur_struct_name
+  i tokens [] -> cur_struct_name
+  1 +=> i
+  cur_struct_name structs_cnt structs []=
+  fields fields_cnt 8 * + structs_cnt structs_field_start []=
+  local cur_field
+  local cur_field_cnt
+  0 -> cur_field_cnt
+  while i token_cnt < i tokens [] dup -> cur_field "endstruct" streq not do
+    cur_field fields_cnt fields []=
+    1 +=> fields_cnt
+    1 +=> cur_field_cnt
+    1 +=> i
+  endwhile
+  cur_field_cnt structs_cnt structs_field_cnt []=
+  1 +=> structs_cnt
+  i return
+endfn
+
+fn prescan_new ( tokens token_cnt i -- new_i )
+  1 +=> i
+  local cur_struct_name
+  i tokens [] -> cur_struct_name
+  local cur_struct_idx
+  if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
+    cur_struct_idx structs_field_cnt [] alloc_cnt alloc_cells []=
+    1 +=> alloc_cnt
+  else
+    i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
+    1 exit
+  endif
+  i return
+endfn
+
 fn prescan ( tokens token_cnt -- )
   "prescan begin:\n" errs
   local cur_func_name
@@ -526,6 +602,10 @@ fn prescan ( tokens token_cnt -- )
       i funcs_cnt funcs_token_end []=
       1 +=> funcs_cnt
       0 -> cur_func_name
+    elif t "struct" streq then
+      tokens token_cnt i prescan_struct -> i
+    elif t "new" streq then
+      tokens token_cnt i prescan_new -> i
     endif
     1 +=> i
   endwhile
@@ -533,6 +613,36 @@ fn prescan ( tokens token_cnt -- )
 endfn
 
 tokens token_cnt prescan
+
+"Strings: " errs str_cnt erri errnl
+"Functions: " errs funcs_cnt erri errnl
+"Variables: " errs variables_cnt erri errnl
+"Local variables: " errs local_variables_cnt erri errnl
+"Structs: " errs structs_cnt erri errnl
+
+fn debug_print_struct ( -- )
+  local i
+  0 -> i
+  fields_cnt erri errnl
+  while i fields_cnt < do
+    i fields [] errs errnl
+    1 +=> i
+  endwhile
+  0 -> i
+  while i structs_cnt < do
+    i structs [] errs ": " errs
+    i structs_field_cnt [] erri errnl
+    local j
+    0 -> j
+    while j i structs_field_cnt [] < do
+      j i structs_field_start [] [] errs errnl
+      1 +=> j
+    endwhile
+    1 +=> i
+  endwhile
+endfn
+
+debug_print_struct
 
 fn declare_fn ( -- )
   local i
@@ -564,7 +674,7 @@ fn declare_alloc_cells ( -- )
   local i
   0 -> i
   while i alloc_cnt < do
-    "alloc_" prints i printi " resq " prints i alloc_cells [] prints nl
+    "alloc_" prints i printi " resq " prints i alloc_cells [] printi nl
     1 +=> i
   endwhile
 endfn
@@ -740,7 +850,11 @@ fn parse_and_emit_assignment ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rax\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
   else
     "mov [" prints var_name prints "], rax\n" prints
@@ -754,7 +868,11 @@ fn parse_and_emit_add_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rax\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "add [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
   else
     "add [" prints var_name prints "], rax\n" prints
@@ -768,7 +886,11 @@ fn parse_and_emit_sub_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rax\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "sub [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
   else
     "sub [" prints var_name prints "], rax\n" prints
@@ -782,7 +904,11 @@ fn parse_and_emit_mul_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rax\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "imul rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
     "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
   else
@@ -798,7 +924,11 @@ fn parse_and_emit_div_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rbx\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
     "cqo\nidiv rbx\n" prints
     "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rax\n" prints
@@ -816,7 +946,11 @@ fn parse_and_emit_mod_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i tokens [] -> var_name
   "pop rbx\n" prints
   local local_var_idx
-  if cur_func_idx cur_func_idx funcs_variable_start [] cur_func_idx funcs_variable_cnt b[] var_name find_name dup -> local_var_idx -1 != and then
+  local local_var_start
+  local local_var_cnt
+  cur_func_idx funcs_variable_start [] -> local_var_start
+  cur_func_idx funcs_variable_cnt b[] -> local_var_cnt
+  if cur_func_idx -1 != local_var_start local_var_cnt var_name find_name dup -> local_var_idx -1 != and then
     "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
     "cqo\nidiv rbx\n" prints
     "mov [rbp-" prints local_var_idx 1 + 8 * printi "], rdx\n" prints
@@ -898,7 +1032,7 @@ fn parse_and_emit_endfn ( tokens token_cnt i cur_func_idx -- new_i new_cur_func_
   "mov rsp, rbp\npop rbp\n" prints
   "ret\n" prints
   ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
-  i 0 return
+  i -1 return
 endfn
 
 fn parse_and_emit_fn_call ( tokens token_cnt i func_idx -- new_i )
@@ -939,6 +1073,13 @@ fn parse_and_skip_fn ( tokens token_cnt i -- new_i )
   i return
 endfn
 
+fn parse_and_skip_struct ( tokens token_cnt i -- new_i )
+  while i token_cnt < i tokens [] "endstruct" streq not and do
+    1 +=> i
+  endwhile
+  i return
+endfn
+
 fn is_local_variable ( tokens token_cnt i cur_func_idx -- new_i local_var_idx )
   if cur_func_idx 0 == then i -1 return endif
   local var_name
@@ -951,11 +1092,65 @@ fn is_local_variable ( tokens token_cnt i cur_func_idx -- new_i local_var_idx )
   i local_var_idx return
 endfn
 
+fn parse_and_emit_dot ( tokens token_cnt i -- new_i )
+  1 +=> i
+  local cur_struct_name
+  i tokens [] -> cur_struct_name
+  local cur_struct_idx
+  if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
+    local cur_field_name
+    1 +=> i
+    i tokens [] -> cur_field_name
+    local cur_field_idx
+    local cur_structs_field_start
+    local cur_structs_field_cnt
+    cur_struct_idx structs_field_start [] -> cur_structs_field_start
+    cur_struct_idx structs_field_cnt [] -> cur_structs_field_cnt
+    if cur_structs_field_start cur_structs_field_cnt cur_field_name find_name dup -> cur_field_idx -1 != then
+      "pop rbx\nmov rax, [rbx + " prints cur_field_idx 8 * printi "]\npush rax\n" prints
+    else
+      i tokens_line_number [] erri ":Type Error: Unknown struct field '" errs cur_field_name errs "'\n" errs
+      1 exit
+    endif
+  else
+    i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
+    1 exit
+  endif
+  i return
+endfn
+
+fn parse_and_emit_dot_assign ( tokens token_cnt i -- new_i )
+  1 +=> i
+  local cur_struct_name
+  i tokens [] -> cur_struct_name
+  local cur_struct_idx
+  if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
+    local cur_field_name
+    1 +=> i
+    i tokens [] -> cur_field_name
+    local cur_field_idx
+    local cur_structs_field_start
+    local cur_structs_field_cnt
+    cur_struct_idx structs_field_start [] -> cur_structs_field_start
+    cur_struct_idx structs_field_cnt [] -> cur_structs_field_cnt
+    if cur_structs_field_start cur_structs_field_cnt cur_field_name find_name dup -> cur_field_idx -1 != then
+      "pop rbx\npop rax\nmov [rbx + " prints cur_field_idx 8 * printi "], rax\n" prints
+    else
+      i tokens_line_number [] erri ":Type Error: Unknown struct field '" errs cur_field_name errs "'\n" errs
+      1 exit
+    endif
+  else
+    i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
+    1 exit
+  endif
+  i return
+endfn
+
 0 -> alloc_idx
 
 fn parse_and_emit ( tokens token_cnt is_fn -- )
   local cur_func_idx
-  0 -> cur_func_idx
+  -1 -> cur_func_idx
   local i
   0 -> i
   while i token_cnt < do
@@ -993,7 +1188,13 @@ fn parse_and_emit ( tokens token_cnt is_fn -- )
       tokens token_cnt i cur_func_idx parse_and_emit_div_and_assign -> i
     elif t "%=>" streq then
       tokens token_cnt i cur_func_idx parse_and_emit_mod_and_assign -> i
+    elif t "." streq then
+      tokens token_cnt i parse_and_emit_dot -> i
+    elif t ".=" streq then
+      tokens token_cnt i parse_and_emit_dot_assign -> i
     elif t "alloc" streq then
+      tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
+    elif t "new" streq then
       tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
     elif t "extern" streq then
       "find extern\n" errs
@@ -1013,6 +1214,8 @@ fn parse_and_emit ( tokens token_cnt is_fn -- )
       endif
     elif t "local" streq then
       1 +=> i # TODO: skip local variable
+    elif t "struct" streq then
+      tokens token_cnt i parse_and_skip_struct -> i
     elif local local_var_idx tokens token_cnt i cur_func_idx is_local_variable -> i dup -> local_var_idx -1 != then
       "mov rax, [rbp-" prints local_var_idx 1 + 8 * printi "]\n" prints
       "push rax\n" prints
