@@ -278,11 +278,6 @@ ops_cnt ops_code []=
 ops_cnt ops_code []=
 1 +=> ops_cnt
 
-"[]" ops_cnt ops_name []=
-"pop rbx\npop rax\nmov rax, [rbx + rax * 8]\npush rax\n"
-ops_cnt ops_code []=
-1 +=> ops_cnt
-
 "[]=" ops_cnt ops_name []=
 "pop rbx\npop rcx\npop rax\nmov [rbx + rcx * 8], rax\n"
 ops_cnt ops_code []=
@@ -450,6 +445,21 @@ fn str2int ( s -- x )
   x return
 endfn
 
+fn is_valid_integer ( s -- flag )
+  if 0 s b[] 0 == then 0 return endif
+  local i
+  local ch
+  0 -> i
+  i s b[] -> ch
+  if ch 43 == ch 45 == or then 1 +=> i endif
+  if i s b[] 0 == then 0 return endif
+  while i s b[] dup -> ch do
+    if ch 48 < ch 57 > or then 0 return endif
+    1 +=> i
+  endwhile
+  1 return
+endfn
+
 fn prescan_alloc_cell ( tokens token_cnt i -- new_i )
   1 +=> i
   local alloc_size
@@ -566,9 +576,21 @@ fn prescan_new ( tokens token_cnt i -- new_i )
   1 +=> i
   local cur_struct_name
   i tokens [] -> cur_struct_name
+  if 0 cur_struct_name b[] 64 == then
+    "skip @\n" errs
+    1 +=> cur_struct_name
+  endif
+  local cur_struct_num
+  1 -> cur_struct_num
+  if i 1 + tokens [] is_valid_integer then
+    1 +=> i
+    i tokens [] str2int -> cur_struct_num
+  endif
   local cur_struct_idx
   if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
-    cur_struct_idx structs_field_cnt [] alloc_cnt alloc_cells []=
+    local alloc_size
+    cur_struct_idx structs_field_cnt [] cur_struct_num * -> alloc_size
+    alloc_size alloc_cnt alloc_cells []=
     1 +=> alloc_cnt
   else
     i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
@@ -707,21 +729,6 @@ fn emit_head ( -- )
 endfn
 
 emit_head
-
-fn is_valid_integer ( s -- flag )
-  if 0 s b[] 0 == then 0 return endif
-  local i
-  local ch
-  0 -> i
-  i s b[] -> ch
-  if ch 43 == ch 45 == or then 1 +=> i endif
-  if i s b[] 0 == then 0 return endif
-  while i s b[] dup -> ch do
-    if ch 48 < ch 57 > or then 0 return endif
-    1 +=> i
-  endwhile
-  1 return
-endfn
 
 fn parse_and_emit_integer ( tokens token_cnt i -- new_i )
   local integer_literal
@@ -970,6 +977,12 @@ fn parse_and_emit_alloc ( tokens token_cnt i alloc_idx -- new_i new_alloc_idx )
   i alloc_idx return
 endfn
 
+fn parse_and_emit_new ( tokens token_cnt i alloc_idx -- new_i new_alloc_idx )
+  tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
+  if i 1 + tokens [] is_valid_integer then 1 +=> i endif
+  i alloc_idx return
+endfn
+
 fn parse_and_emit_fn ( tokens token_cnt i -- new_i cur_func_idx )
   1 +=> i
   local cur_func_name
@@ -1096,6 +1109,10 @@ fn parse_and_emit_dot ( tokens token_cnt i -- new_i )
   1 +=> i
   local cur_struct_name
   i tokens [] -> cur_struct_name
+  if 0 cur_struct_name b[] 64 == then
+    "skip @\n" errs
+    1 +=> cur_struct_name
+  endif
   local cur_struct_idx
   if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
     local cur_field_name
@@ -1123,6 +1140,10 @@ fn parse_and_emit_dot_assign ( tokens token_cnt i -- new_i )
   1 +=> i
   local cur_struct_name
   i tokens [] -> cur_struct_name
+  if 0 cur_struct_name b[] 64 == then
+    "skip @\n" errs
+    1 +=> cur_struct_name
+  endif
   local cur_struct_idx
   if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
     local cur_field_name
@@ -1142,6 +1163,35 @@ fn parse_and_emit_dot_assign ( tokens token_cnt i -- new_i )
   else
     i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
     1 exit
+  endif
+  i return
+endfn
+
+"[]=" ops_cnt ops_name []=
+ops_cnt ops_code []=
+1 +=> ops_cnt
+
+fn parse_and_emit_index ( tokens token_cnt i -- new_i )
+  local cur_struct_name
+  i 1 + tokens [] -> cur_struct_name
+  local cur_stride
+  8 -> cur_stride
+  if 0 cur_struct_name b[] 64 == then
+    1 +=> i
+    1 +=> cur_struct_name
+    local cur_struct_idx
+    if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
+      cur_struct_idx structs_field_cnt [] 8 * -> cur_stride
+    else
+      i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
+      1 exit
+    endif
+  endif
+  if cur_stride 8 <= then
+    "pop rbx\npop rax\nmov rax, [rbx + rax * " prints cur_stride printi "]\npush rax\n" prints
+  else
+    "pop rbx\npop rax\nimul rcx, rax, " prints cur_stride printi nl
+    "lea rax, [rbx + rcx]\npush rax\n" prints
   endif
   i return
 endfn
@@ -1192,10 +1242,12 @@ fn parse_and_emit ( tokens token_cnt is_fn -- )
       tokens token_cnt i parse_and_emit_dot -> i
     elif t ".=" streq then
       tokens token_cnt i parse_and_emit_dot_assign -> i
+    elif t "[]" streq then
+      tokens token_cnt i parse_and_emit_index -> i
     elif t "alloc" streq then
       tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
     elif t "new" streq then
-      tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
+      tokens token_cnt i alloc_idx parse_and_emit_new -> i -> alloc_idx
     elif t "extern" streq then
       "find extern\n" errs
     elif t "fn" streq then
