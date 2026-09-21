@@ -4,6 +4,12 @@ if argc 2 < then
 endif
 
 1 getargv -> filename
+1 -> is_main
+if argc 3 >= then
+  if 2 getargv "-lib" streq then
+    0 -> is_main
+  endif
+endif
 filename readfile -> code -> code_len
 if code_len 0 <= then 1 exit endif
 
@@ -713,19 +719,21 @@ endfn
 fn emit_head ( -- )
   "default rel\n" prints
   declare_fn
-  "global _start\n" prints
   "section .data\n" prints
   declare_strings
   "section .bss\n" prints
   declare_alloc_cells
   declare_variables
   "section .text\n" prints
-  "_start:\n" prints
-  "mov rbp, rsp\n" prints
-  "mov rax, [rbp]\n" prints
-  "lea rbx, [rbp + 8]\n" prints
-  "mov [argc], rax\n" prints
-  "mov [argv], rbx\n" prints
+  if is_main then
+    "global _start\n" prints
+    "_start:\n" prints
+    "mov rbp, rsp\n" prints
+    "mov rax, [rbp]\n" prints
+    "lea rbx, [rbp + 8]\n" prints
+    "mov [argc], rax\n" prints
+    "mov [argv], rbx\n" prints
+  endif
 endfn
 
 emit_head
@@ -1044,7 +1052,6 @@ fn parse_and_emit_endfn ( tokens token_cnt i cur_func_idx -- new_i new_cur_func_
   endif
   "mov rsp, rbp\npop rbp\n" prints
   "ret\n" prints
-  ".L_SKIP_FN_" prints cur_func_name prints ":\n" prints
   i -1 return
 endfn
 
@@ -1081,6 +1088,13 @@ endfn
 
 fn parse_and_skip_fn ( tokens token_cnt i -- new_i )
   while i token_cnt < i tokens [] "endfn" streq not and do
+    1 +=> i
+  endwhile
+  i return
+endfn
+
+fn parse_and_skip_extern ( tokens token_cnt i -- new_i )
+  while i token_cnt < i tokens [] ")" streq not and do
     1 +=> i
   endwhile
   i return
@@ -1250,6 +1264,7 @@ fn parse_and_emit ( tokens token_cnt is_fn -- )
       tokens token_cnt i alloc_idx parse_and_emit_new -> i -> alloc_idx
     elif t "extern" streq then
       "find extern\n" errs
+      tokens token_cnt i parse_and_skip_extern -> i
     elif t "fn" streq then
       if is_fn then
         tokens token_cnt i parse_and_emit_fn -> i -> cur_func_idx
@@ -1290,7 +1305,9 @@ endfn
 
 tokens token_cnt 0 parse_and_emit
 
-"mov rax, 60\nmov rdi, 0\nsyscall\n" prints
+if is_main then
+  "mov rax, 60\nmov rdi, 0\nsyscall\n" prints
+endif
 
 fn parse_and_emit_standalone_fn ( tokens token_cnt -- )
   local i
