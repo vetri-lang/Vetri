@@ -13,8 +13,8 @@ endif
 filename readfile -> code -> code_len
 if code_len 0 <= then 1 exit endif
 
-alloc 4096 -> tokens
-alloc 4096 -> tokens_line_number
+alloc 8192 -> tokens
+alloc 8192 -> tokens_line_number
 0 -> token_cnt
 0 -> line_cnt
 
@@ -90,8 +90,6 @@ alloc 512 -> variables
 0 -> variables_cnt
 alloc 512 -> local_variables
 0 -> local_variables_cnt
-alloc 64 -> alloc_cells
-0 -> alloc_cnt
 0 -> str_cnt
 alloc 256 -> strings
 alloc 128 -> funcs
@@ -466,17 +464,6 @@ fn is_valid_integer ( s -- flag )
   1 return
 endfn
 
-fn prescan_alloc_cell ( tokens token_cnt i -- new_i )
-  1 +=> i
-  local alloc_size
-  i tokens [] str2int -> alloc_size
-  if alloc_size then
-    alloc_size alloc_cnt alloc_cells []=
-    1 +=> alloc_cnt
-  endif
-  i return
-endfn
-
 fn prescan_extern_fn ( tokens token_cnt i -- new_i )
   1 +=> i
   local func_name
@@ -578,33 +565,6 @@ fn prescan_struct ( tokens token_cnt i -- new_i )
   i return
 endfn
 
-fn prescan_new ( tokens token_cnt i -- new_i )
-  1 +=> i
-  local cur_struct_name
-  i tokens [] -> cur_struct_name
-  if 0 cur_struct_name b[] 64 == then
-    "skip @\n" errs
-    1 +=> cur_struct_name
-  endif
-  local cur_struct_num
-  1 -> cur_struct_num
-  if i 1 + tokens [] is_valid_integer then
-    1 +=> i
-    i tokens [] str2int -> cur_struct_num
-  endif
-  local cur_struct_idx
-  if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
-    local alloc_size
-    cur_struct_idx structs_field_cnt [] cur_struct_num * -> alloc_size
-    alloc_size alloc_cnt alloc_cells []=
-    1 +=> alloc_cnt
-  else
-    i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
-    1 exit
-  endif
-  i return
-endfn
-
 fn prescan ( tokens token_cnt -- )
   "prescan begin:\n" errs
   local cur_func_name
@@ -616,8 +576,6 @@ fn prescan ( tokens token_cnt -- )
     i tokens [] -> t
     if 0 t b[] 34 == then
       tokens token_cnt i prescan_string -> i
-    elif t "alloc" streq then
-      tokens token_cnt i prescan_alloc_cell -> i
     elif t "extern" streq then
       tokens token_cnt i prescan_extern_fn -> i
     elif t "fn" streq then
@@ -632,8 +590,6 @@ fn prescan ( tokens token_cnt -- )
       0 -> cur_func_name
     elif t "struct" streq then
       tokens token_cnt i prescan_struct -> i
-    elif t "new" streq then
-      tokens token_cnt i prescan_new -> i
     endif
     1 +=> i
   endwhile
@@ -684,6 +640,7 @@ fn declare_fn ( -- )
     i funcs [] prints nl
     1 +=> i
   endwhile
+  "extern vetri_alloc\n" prints
 endfn
 
 fn declare_strings ( -- )
@@ -694,15 +651,6 @@ fn declare_strings ( -- )
     96 0 raw_str b[]=
     "str_" prints i printi " db " prints raw_str prints "\`, 0\n" prints
     34 0 raw_str b[]=
-    1 +=> i
-  endwhile
-endfn
-
-fn declare_alloc_cells ( -- )
-  local i
-  0 -> i
-  while i alloc_cnt < do
-    "alloc_" prints i printi " resq " prints i alloc_cells [] printi nl
     1 +=> i
   endwhile
 endfn
@@ -722,7 +670,6 @@ fn emit_head ( -- )
   "section .data\n" prints
   declare_strings
   "section .bss\n" prints
-  declare_alloc_cells
   declare_variables
   "section .text\n" prints
   if is_main then
@@ -977,18 +924,40 @@ fn parse_and_emit_mod_and_assign ( tokens token_cnt i cur_func_idx -- new_i )
   i return
 endfn
 
-fn parse_and_emit_alloc ( tokens token_cnt i alloc_idx -- new_i new_alloc_idx )
-  "lea rax, [alloc_" prints alloc_idx printi "]\n" prints
-  "push rax\n" prints
-  1 +=> alloc_idx
+fn parse_and_emit_alloc ( tokens token_cnt i -- new_i )
   1 +=> i
-  i alloc_idx return
+  local alloc_size
+  i tokens [] str2int -> alloc_size
+  "mov rdi, " prints alloc_size 8 * printi nl
+  "call vetri_alloc\npush rax\n" prints
+  i return
 endfn
 
-fn parse_and_emit_new ( tokens token_cnt i alloc_idx -- new_i new_alloc_idx )
-  tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
-  if i 1 + tokens [] is_valid_integer then 1 +=> i endif
-  i alloc_idx return
+fn parse_and_emit_new ( tokens token_cnt i -- new_i )
+  1 +=> i
+  local cur_struct_name
+  i tokens [] -> cur_struct_name
+  if 0 cur_struct_name b[] 64 == then
+    "skip @\n" errs
+    1 +=> cur_struct_name
+  endif
+  local cur_struct_num
+  1 -> cur_struct_num
+  if i 1 + tokens [] is_valid_integer then
+    1 +=> i
+    i tokens [] str2int -> cur_struct_num
+  endif
+  local cur_struct_idx
+  if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
+    local alloc_size
+    cur_struct_idx structs_field_cnt [] cur_struct_num * -> alloc_size
+    "mov rdi, " prints alloc_size printi nl
+    "call vetri_alloc\npush rax\n" prints
+  else
+    i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
+    1 exit
+  endif
+  i return
 endfn
 
 fn parse_and_emit_fn ( tokens token_cnt i -- new_i cur_func_idx )
@@ -1210,8 +1179,6 @@ fn parse_and_emit_index ( tokens token_cnt i -- new_i )
   i return
 endfn
 
-0 -> alloc_idx
-
 fn parse_and_emit ( tokens token_cnt is_fn -- )
   local cur_func_idx
   -1 -> cur_func_idx
@@ -1259,9 +1226,9 @@ fn parse_and_emit ( tokens token_cnt is_fn -- )
     elif t "[]" streq then
       tokens token_cnt i parse_and_emit_index -> i
     elif t "alloc" streq then
-      tokens token_cnt i alloc_idx parse_and_emit_alloc -> i -> alloc_idx
+      tokens token_cnt i parse_and_emit_alloc -> i
     elif t "new" streq then
-      tokens token_cnt i alloc_idx parse_and_emit_new -> i -> alloc_idx
+      tokens token_cnt i parse_and_emit_new -> i
     elif t "extern" streq then
       "find extern\n" errs
       tokens token_cnt i parse_and_skip_extern -> i
