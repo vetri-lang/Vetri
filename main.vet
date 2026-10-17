@@ -923,7 +923,7 @@ fn parse_and_emit_new ( tokens token_cnt i -- new_i )
   if structs structs_cnt cur_struct_name find_name dup -> cur_struct_idx -1 != then
     local alloc_size
     cur_struct_idx structs_field_cnt [] cur_struct_num * -> alloc_size
-    "mov rdi, " prints alloc_size printi nl
+    "mov rdi, " prints alloc_size 8 * printi nl
     "call vetri_alloc\npush rax\n" prints
   else
     i tokens_line_number [] erri ":Type Error: Unknown struct '" errs cur_struct_name errs "'\n" errs
